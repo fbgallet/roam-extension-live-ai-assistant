@@ -41,12 +41,59 @@ import {
 } from "./dataExtraction";
 import { getParentBlock } from "../utils/roamAPI";
 
+// Tunable thresholds for the Whisper silence guard (2) and hallucination filter (3).
+// Loosen these (smaller silence gates, more negative logprob, higher compression)
+// if real/faint notes get dropped; tighten them if hallucinations slip through.
+const TRANSCRIPTION_THRESHOLDS = {
+  // (2) Below BOTH of these the recording is treated as silent and not sent.
+  silencePeak: 0.01, // max abs sample amplitude (0..1)
+  silenceRms: 0.0015, // root-mean-square amplitude (0..1)
+  // (3) A Whisper verbose_json segment is dropped as a hallucination when any holds:
+  noSpeechProb: 0.6, // ...combined with logprob below noSpeechLogprob
+  noSpeechLogprob: -0.5,
+  lowLogprob: -1.0, // poor decode confidence on its own
+  highCompression: 2.4, // abnormally repetitive text (decode loop)
+};
+
 export async function transcribeAudio(filename) {
+  // Provider is auto-detected from the selected transcription model id.
+  const selectedModel = (transcriptionModel || "").toLowerCase();
+  if (selectedModel.includes("gemini")) {
+    if (!googleLibrary) return null;
+    return await transcribeAudioWithGemini(filename, transcriptionModel);
+  }
+  if (selectedModel.includes("grok")) {
+    if (!GROK_API_KEY) return null;
+    // MediaRecorder yields webm (Chrome), which xAI STT may reject; send WAV.
+    const wavBlob = await audioFileToWavBlob(filename);
+    return await transcribeAudioWithGrok(wavBlob);
+  }
   if (!openaiLibrary && !groqLibrary) return null;
   try {
     // console.log(filename);
-    const defaultPrompt =
-      "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes. If audio is longuer than 30s, add mm:ss timestamp for key moments.";
+    // (2) Silence guard: Whisper hallucinates (or repeats prompt/phrases) when the
+    // audio is essentially silent. Skip the API call entirely on near-silent input.
+    const loudness = await getAudioLoudness(filename);
+    if (
+      loudness &&
+      loudness.peak < TRANSCRIPTION_THRESHOLDS.silencePeak &&
+      loudness.rms < TRANSCRIPTION_THRESHOLDS.silenceRms
+    ) {
+      AppToaster.show({
+        message: "No speech detected in the recording (audio is silent).",
+        timeout: 4000,
+      });
+      return "";
+    }
+
+    // whisper-1 (and Groq whisper-large-v3) treat `prompt` as conditioning text,
+    // not as instructions: feeding it a task description makes it echo/repeat that
+    // text on low-confidence audio (silence, short notes...). So only pass it the
+    // user's vocabulary/spelling hints. The gpt-4o(-mini)-transcribe models are
+    // GPT-4o based and DO follow prompt instructions, so give them the guidance
+    // prompt plus any vocabulary hints.
+    const isGpt4oTranscribe =
+      !isUsingGroqWhisper && selectedModel.includes("transcribe");
     const options = {
       file: filename,
       model:
@@ -54,9 +101,20 @@ export async function transcribeAudio(filename) {
           ? "whisper-large-v3"
           : transcriptionModel,
       // stream: true, // doesn't work as real streaming here
-      response_format: "text",
-      prompt: whisperPrompt || defaultPrompt,
+      // (3) Whisper models expose per-segment confidence via verbose_json, which
+      // lets us drop hallucinated segments below. gpt-4o(-mini)-transcribe only
+      // supports json/text, so keep plain text for them.
+      response_format: isGpt4oTranscribe ? "text" : "verbose_json",
     };
+    if (isGpt4oTranscribe) {
+      let prompt =
+        "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes.";
+      if (whisperPrompt)
+        prompt += `\n\nSpecific words or proper nouns to spell correctly: ${whisperPrompt}`;
+      options.prompt = prompt;
+    } else if (whisperPrompt) {
+      options.prompt = whisperPrompt;
+    }
     if (transcriptionLanguage) options.language = transcriptionLanguage;
     const transcript =
       isUsingGroqWhisper && groqLibrary
@@ -64,7 +122,12 @@ export async function transcribeAudio(filename) {
         : await openaiLibrary.audio.transcriptions.create(options);
     // console.log(transcript);
 
-    return transcript ? transcript.trim() : "";
+    // gpt-4o path: response_format "text" returns a plain string.
+    if (isGpt4oTranscribe || typeof transcript === "string")
+      return transcript ? transcript.trim() : "";
+
+    // Whisper verbose_json path: filter out hallucinated segments before joining.
+    return filterWhisperSegments(transcript);
 
     // streaming doesn't work as expected (await for the whole audio transcription before streaming...)
     // let transcribedText = "";
@@ -124,6 +187,238 @@ export async function translateAudio(filename) {
     });
     return null;
   }
+}
+
+// Transcribe a recorded audio File/Blob with a Gemini model (generateContent).
+// The audio is converted to mono 16kHz WAV first, because the browser MediaRecorder
+// produces audio/webm (on Chrome) which Gemini does not accept.
+async function transcribeAudioWithGemini(file, model) {
+  try {
+    const defaultPrompt =
+      "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes. If audio is longer than 90s, add mm:ss timestamp only for key moments.";
+    let prompt = whisperPrompt
+      ? `${defaultPrompt}\n\nSpecific words or proper nouns to spell correctly: ${whisperPrompt}`
+      : defaultPrompt;
+    if (transcriptionLanguage)
+      prompt += `\n\nThe primary language of the audio is "${transcriptionLanguage}" (ISO 639-1 code).`;
+    prompt +=
+      "\n\nReturn ONLY the transcription text, without any introduction, comment or markdown code fence.";
+
+    const wavBlob = await audioFileToWavBlob(file);
+    const mimeType = "audio/wav";
+    const messageParts = [{ text: prompt }];
+
+    if (wavBlob.size > 20 * 1024 * 1024) {
+      // Use the Files API for large recordings (>20MB)
+      const uploadedFile = await googleLibrary.files.upload({
+        file: wavBlob,
+        config: { mimeType },
+      });
+      messageParts.push({
+        fileData: {
+          fileUri: uploadedFile.uri,
+          mimeType: uploadedFile.mimeType,
+        },
+      });
+    } else {
+      const audioBase64 = arrayBufferToBase64(await wavBlob.arrayBuffer());
+      messageParts.push({ inlineData: { mimeType, data: audioBase64 } });
+    }
+
+    const response = await googleLibrary.models.generateContent({
+      model,
+      contents: messageParts,
+    });
+
+    return response.text ? response.text.trim() : "";
+  } catch (error) {
+    console.error(error.message);
+    AppToaster.show({
+      message: `Google API (Gemini) transcription error: ${error.message}`,
+      timeout: 15000,
+    });
+    return "";
+  }
+}
+
+// Transcribe an audio File/Blob with Grok (xAI) via the dedicated /v1/stt endpoint.
+// Expects a Grok-compatible format (wav, mp3, ogg, flac, m4a…); callers handling
+// raw MediaRecorder output should convert to WAV first.
+async function transcribeAudioWithGrok(file) {
+  try {
+    const formData = new FormData();
+    // `format=true` enables inverse text normalization but requires a language.
+    if (transcriptionLanguage) {
+      formData.append("format", "true");
+      formData.append("language", transcriptionLanguage);
+    }
+    // Bias transcription toward user-provided vocabulary/proper nouns (max 100 terms,
+    // 50 chars each). The field is repeated once per term.
+    if (whisperPrompt) {
+      whisperPrompt
+        .split(/[,\n]+/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 100)
+        .forEach((term) => formData.append("keyterm", term.slice(0, 50)));
+    }
+    // The `file` field MUST be appended last (xAI multipart requirement).
+    formData.append("file", file, file.name || "audio.wav");
+
+    const response = await fetch("https://api.x.ai/v1/stt", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GROK_API_KEY}` },
+      body: formData,
+    });
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`${response.status} ${errText}`.trim());
+    }
+    const result = await response.json();
+    return result?.text ? result.text.trim() : "";
+  } catch (error) {
+    console.error(error.message);
+    AppToaster.show({
+      message: `xAI (Grok) transcription error: ${error.message}`,
+      timeout: 15000,
+    });
+    return "";
+  }
+}
+
+// Convert any audio File/Blob the browser can decode into a mono 16kHz 16-bit
+// PCM WAV Blob (a format Gemini accepts, unlike the webm/opus MediaRecorder output).
+// (2) Measure peak amplitude and RMS of the decoded audio (samples are -1..1),
+// so the caller can skip transcription of essentially-silent recordings, which
+// are what make Whisper hallucinate. Returns null if decoding fails (then we just
+// proceed with the API call rather than dropping a possibly-valid recording).
+async function getAudioLoudness(file) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+    let decoded;
+    try {
+      decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+    } finally {
+      if (audioCtx.close) audioCtx.close();
+    }
+    let peak = 0;
+    let sumSquares = 0;
+    let count = 0;
+    for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+      const data = decoded.getChannelData(ch);
+      for (let i = 0; i < data.length; i++) {
+        const v = Math.abs(data[i]);
+        if (v > peak) peak = v;
+        sumSquares += data[i] * data[i];
+      }
+      count += data.length;
+    }
+    const rms = count ? Math.sqrt(sumSquares / count) : 0;
+    return { peak, rms };
+  } catch (e) {
+    console.error("getAudioLoudness failed:", e.message);
+    return null;
+  }
+}
+
+// (3) Whisper verbose_json returns per-segment confidence. Drop segments that are
+// almost certainly hallucinations, then join the rest. Heuristics (the same ones
+// Whisper uses internally for its temperature-fallback decisions):
+//  - high no_speech_prob + low avg_logprob  -> model thinks it's NOT speech
+//  - very low avg_logprob                   -> decode confidence is poor
+//  - high compression_ratio                 -> abnormally repetitive (loop)
+function filterWhisperSegments(transcript) {
+  if (!transcript) return "";
+  const segments = transcript.segments;
+  if (!Array.isArray(segments)) return (transcript.text || "").trim();
+  const t = TRANSCRIPTION_THRESHOLDS;
+  const kept = segments.filter((seg) => {
+    const noSpeech = seg.no_speech_prob ?? 0;
+    const logprob = seg.avg_logprob ?? 0;
+    const compression = seg.compression_ratio ?? 0;
+    const isHallucination =
+      (noSpeech > t.noSpeechProb && logprob < t.noSpeechLogprob) ||
+      logprob < t.lowLogprob ||
+      compression > t.highCompression;
+    return !isHallucination;
+  });
+  const result = kept
+    .map((s) => s.text)
+    .join("")
+    .trim();
+  // Warn when there was audio but every segment was discarded as non-speech /
+  // hallucination — the user gets nothing back and should know why.
+  if (!result && segments.length) {
+    AppToaster.show({
+      message:
+        "No transcribable speech detected (the audio seems to be silence or noise).",
+      timeout: 4000,
+    });
+  }
+  return result;
+}
+
+async function audioFileToWavBlob(file, targetSampleRate = 16000) {
+  const arrayBuffer = await file.arrayBuffer();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = new AudioCtx();
+  let decoded;
+  try {
+    decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+  } finally {
+    if (audioCtx.close) audioCtx.close();
+  }
+
+  // Downmix to mono and resample to targetSampleRate via OfflineAudioContext.
+  const frameCount = Math.max(
+    1,
+    Math.round(decoded.duration * targetSampleRate),
+  );
+  const offline = new OfflineAudioContext(1, frameCount, targetSampleRate);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start(0);
+  const rendered = await offline.startRendering();
+
+  return encodeWavBlob(rendered);
+}
+
+// Encode an AudioBuffer's first channel as a 16-bit PCM WAV Blob.
+function encodeWavBlob(audioBuffer) {
+  const samples = audioBuffer.getChannelData(0);
+  const sampleRate = audioBuffer.sampleRate;
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset, str) => {
+    for (let i = 0; i < str.length; i++)
+      view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true); // PCM chunk size
+  view.setUint16(20, 1, true); // audio format = PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate (sampleRate * blockAlign)
+  view.setUint16(32, 2, true); // block align (channels * bytesPerSample)
+  view.setUint16(34, 16, true); // bits per sample
+  writeString(36, "data");
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+
+  return new Blob([view], { type: "audio/wav" });
 }
 
 // Global variable to track currently playing audio
@@ -488,7 +783,7 @@ export async function imageGeneration(
   quality = "auto",
   model,
   tokensCallback,
-  conversationUid = null // Optional: parent block UID for chat-based editing
+  conversationUid = null, // Optional: parent block UID for chat-based editing
 ) {
   // Use default image model if no model specified
   if (!model) {
@@ -627,7 +922,7 @@ export async function imageGeneration(
       // Check if there are images in the prompt (for editing)
       roamImageRegex.lastIndex = 0;
       const matchingImagesInPrompt = Array.from(
-        prompt.matchAll(roamImageRegex)
+        prompt.matchAll(roamImageRegex),
       );
 
       // For nano banana, support image editing (single or multiple images)
@@ -637,7 +932,7 @@ export async function imageGeneration(
         for (const match of matchingImagesInPrompt) {
           textPrompt = textPrompt.replace(
             match[0],
-            match[1] ? `[${match[1]}]` : ""
+            match[1] ? `[${match[1]}]` : "",
           );
         }
 
@@ -737,7 +1032,7 @@ export async function imageGeneration(
           if (!candidate.content || !candidate.content.parts) {
             console.error("Invalid response structure:", result);
             throw new Error(
-              "Invalid response structure: missing content.parts"
+              "Invalid response structure: missing content.parts",
             );
           }
 
@@ -758,7 +1053,7 @@ export async function imageGeneration(
                 model,
                 result,
                 nanoBananaConfig.imageSize || "2K",
-                true // hasInputImage
+                true, // hasInputImage
               );
               if (tokensCallback) {
                 tokensCallback(usage);
@@ -852,7 +1147,7 @@ export async function imageGeneration(
             if (!candidate.content || !candidate.content.parts) {
               console.error("Invalid response structure:", result);
               throw new Error(
-                "Invalid response structure: missing content.parts"
+                "Invalid response structure: missing content.parts",
               );
             }
 
@@ -874,7 +1169,7 @@ export async function imageGeneration(
                   model,
                   result,
                   nanoBananaConfig.imageSize || "2K",
-                  false // no input image
+                  false, // no input image
                 );
                 if (tokensCallback) {
                   tokensCallback(usage);
@@ -935,7 +1230,7 @@ export async function imageGeneration(
       // Check if there are images in the prompt (for editing)
       roamImageRegex.lastIndex = 0;
       const matchingImagesInPrompt = Array.from(
-        prompt.matchAll(roamImageRegex)
+        prompt.matchAll(roamImageRegex),
       );
 
       if (matchingImagesInPrompt.length) {
@@ -946,7 +1241,7 @@ export async function imageGeneration(
         for (const match of matchingImagesInPrompt) {
           textPrompt = textPrompt.replace(
             match[0],
-            match[1] ? `[${match[1]}]` : ""
+            match[1] ? `[${match[1]}]` : "",
           );
         }
 
@@ -980,7 +1275,7 @@ export async function imageGeneration(
         if (!editResponse.ok) {
           const errorBody = await editResponse.text();
           throw new Error(
-            `Grok image edit failed (${editResponse.status}): ${errorBody}`
+            `Grok image edit failed (${editResponse.status}): ${errorBody}`,
           );
         }
 
@@ -1004,7 +1299,7 @@ export async function imageGeneration(
           const image_base64 = result.data[0].b64_json;
           const byteCharacters = atob(image_base64);
           const byteNumbers = Array.from(byteCharacters).map((c) =>
-            c.charCodeAt(0)
+            c.charCodeAt(0),
           );
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: "image/png" });
@@ -1078,7 +1373,7 @@ export async function imageGeneration(
     // Check if there are images in the prompt (for editing)
     roamImageRegex.lastIndex = 0;
     const matchingImagesInPrompt = Array.from(
-      cleanedPrompt.matchAll(roamImageRegex)
+      cleanedPrompt.matchAll(roamImageRegex),
     );
 
     let mode = "generate";
@@ -1098,7 +1393,7 @@ export async function imageGeneration(
             ? i === maskIndex
               ? `Image n°${i} is the mask`
               : `Title of image n°${i + 1}: ${matchingImagesInPrompt[i][1]}`
-            : ""
+            : "",
         );
       }
 
@@ -1107,7 +1402,7 @@ export async function imageGeneration(
 
       // Fetch images from URLs
       const images = await Promise.all(
-        imageURLs.map(async (url) => await roamAlphaAPI.file.get({ url }))
+        imageURLs.map(async (url) => await roamAlphaAPI.file.get({ url })),
       );
 
       if (maskIndex !== null) {
@@ -1173,14 +1468,14 @@ export const addImagesUrlToMessages = async (
   messages,
   content,
   isAnthropicModel,
-  useResponseApi = false
+  useResponseApi = false,
 ) => {
   let nbCountdown = maxImagesNb;
 
   for (let i = 1; i < messages.length; i++) {
     roamImageRegex.lastIndex = 0;
     const matchingImagesInPrompt = Array.from(
-      messages[i].content?.matchAll(roamImageRegex)
+      messages[i].content?.matchAll(roamImageRegex),
     );
     if (matchingImagesInPrompt.length) {
       messages[i].content = [
@@ -1227,7 +1522,7 @@ export const addImagesUrlToMessages = async (
   if (content && content.length) {
     roamImageRegex.lastIndex = 0;
     const matchingImagesInContext = Array.from(
-      content.matchAll(roamImageRegex)
+      content.matchAll(roamImageRegex),
     );
     for (let i = 0; i < matchingImagesInContext.length; i++) {
       if (nbCountdown > 0) {
@@ -1284,7 +1579,7 @@ export const isModelSupportingImage = (model) => {
   const modelLower = model.toLowerCase();
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find(
-      (m) => m.id.toLowerCase() === modelLower
+      (m) => m.id.toLowerCase() === modelLower,
     );
     if (ormodel) return ormodel.imagePricing ? true : false;
   }
@@ -1296,7 +1591,7 @@ export const addPdfUrlToMessages = async (
   messages,
   content,
   provider,
-  useResponseApi = false
+  useResponseApi = false,
 ) => {
   // Determine if we should use Response API format
   const isResponseApi = provider === "OpenAI" && useResponseApi;
@@ -1306,7 +1601,7 @@ export const addPdfUrlToMessages = async (
     const matchingPdfInPrompt = Array.from(
       (typeof messages[i].content === "string"
         ? messages[i].content?.matchAll(pdfLinkRegex)
-        : []) || []
+        : []) || [],
     );
 
     if (matchingPdfInPrompt.length) {
@@ -1327,7 +1622,7 @@ export const addPdfUrlToMessages = async (
         matchingPdfInPrompt[j][1],
         matchingPdfInPrompt[j][2],
         provider,
-        useResponseApi
+        useResponseApi,
       );
 
       messages[i].content.push(pdfRole);
@@ -1353,7 +1648,7 @@ export const addPdfUrlToMessages = async (
         matchingPdfInContext[i][1],
         matchingPdfInContext[i][2],
         provider,
-        useResponseApi
+        useResponseApi,
       );
       messages[1].content.push(pdfRole);
     }
@@ -1538,8 +1833,8 @@ export const addVideosToGeminiMessage = async (messageParts, content) => {
         if (videoSize > 20 * 1024 * 1024) {
           console.log(
             `Video is ${(videoSize / 1024 / 1024).toFixed(
-              2
-            )}MB. Using Files API.`
+              2,
+            )}MB. Using Files API.`,
           );
 
           const uploadedFile = await googleLibrary.files.upload({
@@ -1600,7 +1895,7 @@ export const addVideosToGeminiMessage = async (messageParts, content) => {
   // Second, process standalone YouTube URLs in content that weren't already wrapped
   const youtubeRegexGlobal = new RegExp(youtubeRegex.source, "g");
   const standaloneYoutubeUrls = Array.from(
-    content.matchAll(youtubeRegexGlobal)
+    content.matchAll(youtubeRegexGlobal),
   );
 
   for (let i = 0; i < standaloneYoutubeUrls.length; i++) {
@@ -1637,7 +1932,7 @@ export const addVideosToGeminiMessage = async (messageParts, content) => {
       messageParts.push(videoPart);
     } catch (error) {
       console.error(
-        `Error processing standalone YouTube URL: ${error.message}`
+        `Error processing standalone YouTube URL: ${error.message}`,
       );
     }
   }
@@ -1649,11 +1944,12 @@ export const addVideosToGeminiMessage = async (messageParts, content) => {
 export const transcribeAudioFromBlock = async (
   blockContent,
   userPrompt = "",
-  model = ""
+  model = "",
 ) => {
   try {
-    // Check if we should use Gemini (if model name includes "gemini")
+    // Provider auto-detected from the model id.
     const useGemini = model.toLowerCase().includes("gemini");
+    const useGrok = model.toLowerCase().includes("grok");
 
     // Extract audio URL from block content
     roamAudioRegex.lastIndex = 0;
@@ -1673,7 +1969,7 @@ export const transcribeAudioFromBlock = async (
     if (useGemini && googleLibrary) {
       // Use Gemini for transcription
       const defaultInstructions =
-        "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes (try to name them properly or follow the user indication if provided). Give timestamps for the key moments. If audio is longuer than 30s, add mm:ss timestamp for key moments.";
+        "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes (try to name them properly or follow the user indication if provided). Give timestamps for the key moments. If audio is longuer than 90s, add mm:ss timestamp for key moments.";
       const fullPrompt = userPrompt
         ? `${defaultInstructions}\n\nAdditional instructions: ${userPrompt}`
         : defaultInstructions;
@@ -1689,6 +1985,26 @@ export const transcribeAudioFromBlock = async (
       });
 
       return response.text || "";
+    } else if (useGrok && GROK_API_KEY) {
+      // Use Grok (xAI) STT. The block audio is typically mp3/wav, which the
+      // /v1/stt endpoint accepts directly (no conversion needed).
+      let audioBlob;
+      if (audioUrl.includes("firebasestorage.googleapis.com")) {
+        audioBlob = await roamAlphaAPI.file.get({ url: audioUrl });
+      } else {
+        const audioResponse = await fetch(audioUrl);
+        if (!audioResponse.ok) {
+          throw new Error(`Failed to fetch audio from ${audioUrl}`);
+        }
+        audioBlob = await audioResponse.blob();
+      }
+      const mimeType = audioBlob.type || getAudioMimeType(audioUrl);
+      const extension =
+        audioUrl.split(".").pop().toLowerCase().split("?")[0] || "mp3";
+      const audioFile = new File([audioBlob], `audio.${extension}`, {
+        type: mimeType,
+      });
+      return await transcribeAudioWithGrok(audioFile);
     } else if (openaiLibrary || groqLibrary) {
       // Use OpenAI/Groq for transcription
       // Fetch the audio file
@@ -1813,7 +2129,7 @@ export const addAudioToGeminiMessage = async (messageParts, content) => {
       if (audioSize > 20 * 1024 * 1024) {
         // Use Files API for large files (>20MB)
         console.log(
-          `Audio is ${(audioSize / 1024 / 1024).toFixed(2)}MB. Using Files API.`
+          `Audio is ${(audioSize / 1024 / 1024).toFixed(2)}MB. Using Files API.`,
         );
 
         const uploadedFile = await googleLibrary.files.upload({

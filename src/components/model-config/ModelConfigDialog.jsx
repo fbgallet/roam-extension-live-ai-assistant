@@ -10,6 +10,7 @@ import {
   Tag,
   Icon,
   Tooltip,
+  HTMLSelect,
 } from "@blueprintjs/core";
 import ModelCard from "./ModelCard";
 import CustomModelForm from "./CustomModelForm";
@@ -20,6 +21,7 @@ import { AppToaster } from "../Toaster";
 import {
   extensionStorage,
   setDefaultModel,
+  setTranscriptionModel,
   updateAvailableModels,
   OPENAI_API_KEY,
   ANTHROPIC_API_KEY,
@@ -47,7 +49,11 @@ import {
   isCustomModel,
   isImageGenModel,
 } from "../../utils/modelConfigHelpers";
-import { getAvailableModels } from "../../ai/modelsInfo";
+import {
+  getAvailableModels,
+  transcriptionModels,
+  getTranscriptionModelLabel,
+} from "../../ai/modelsInfo";
 import { getModelsByProvider, MODEL_REGISTRY, unregisterOpenRouterModel } from "../../ai/modelRegistry";
 import "./ModelConfigDialog.css";
 
@@ -78,6 +84,9 @@ export const ModelConfigDialog = ({
   const [isDraggingOverImageGen, setIsDraggingOverImageGen] = useState(false); // For image gen model drop zone
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [transcriptionModelId, setTranscriptionModelId] = useState(
+    () => extensionStorage?.get("transcriptionModel") || "whisper-1"
+  );
 
   // Load config when dialog opens
   useEffect(() => {
@@ -96,6 +105,10 @@ export const ModelConfigDialog = ({
 
       setWorkingConfig(configCopy);
       setSearchQuery("");
+      // Refresh transcription model from storage (may have changed in main settings)
+      setTranscriptionModelId(
+        extensionStorage.get("transcriptionModel") || "whisper-1"
+      );
 
       // Clear NEW badges after 3 seconds of viewing
       const timer = setTimeout(() => {
@@ -1190,12 +1203,6 @@ export const ModelConfigDialog = ({
               <span className="default-model-name">
                 {defaultModelInfo.name}
               </span>
-              {defaultModelInfo.pricing &&
-                defaultModelInfo.pricing.output > 0 && (
-                  <Tag minimal small className="default-tag price-out">
-                    Out: ${defaultModelInfo.pricing.output.toFixed(2)}
-                  </Tag>
-                )}
               <Button
                 icon="cross"
                 minimal
@@ -1222,6 +1229,65 @@ export const ModelConfigDialog = ({
             </span>
           </div>
         )}
+      </div>
+    );
+  };
+
+  // Render voice transcription model selector (compact dropdown).
+  // Provider is auto-detected from the model id (ids containing "gemini" use Google).
+  // Warn (instead of a static info icon) when the picked transcription model needs
+  // an API key that isn't configured. Returns null when the key is present.
+  const getMissingTranscriptionKeyWarning = (modelId) => {
+    const lower = modelId.toLowerCase();
+    if (lower.includes("gemini"))
+      return GOOGLE_API_KEY
+        ? null
+        : "This Gemini transcription model requires a Google API key. Add it in the extension settings to use it.";
+    if (lower.includes("grok"))
+      return GROK_API_KEY
+        ? null
+        : "This Grok transcription model requires a Grok (xAI) API key. Add it in the extension settings to use it.";
+    // OpenAI family: whisper-1 can fall back to Groq ('Use Whisper via Groq'),
+    // but the gpt-4o(-mini)-transcribe models need an OpenAI key specifically.
+    if (lower === "whisper-1")
+      return OPENAI_API_KEY || GROQ_API_KEY
+        ? null
+        : "Whisper requires an OpenAI API key (or a Groq key with 'Use Whisper via Groq' enabled). Add one in the extension settings to use it.";
+    return OPENAI_API_KEY
+      ? null
+      : "This transcription model requires an OpenAI API key. Add it in the extension settings to use it.";
+  };
+
+  const renderTranscriptionModelSection = () => {
+    return (
+      <div className="default-model-section default-transcription-section">
+        <div className="default-model-compact">
+          <Icon icon="headset" className="default-pin-icon" size={12} />
+          <span className="default-label">Transcription:</span>
+          <HTMLSelect
+            minimal
+            style={{ flex: 1, minWidth: 0, maxWidth: "100%" }}
+            value={transcriptionModelId}
+            onChange={(e) => {
+              const value = e.currentTarget.value;
+              setTranscriptionModelId(value);
+              setTranscriptionModel(value);
+              const warning = getMissingTranscriptionKeyWarning(value);
+              if (warning)
+                AppToaster.show({
+                  message: warning,
+                  intent: "warning",
+                  timeout: 8000,
+                });
+            }}
+          >
+            {transcriptionModels.map((id) => (
+              <option key={id} value={id}>
+                {getTranscriptionModelLabel(id)}
+              </option>
+            ))}
+          </HTMLSelect>
+        </div>
       </div>
     );
   };
@@ -1774,9 +1840,17 @@ export const ModelConfigDialog = ({
           {activeTab === "visibility" && (
             <>
               {renderDefaultModelSection()}
-              <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  marginTop: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
                 {renderDefaultWebSearchModelSection()}
                 {renderDefaultImageModelSection()}
+                {renderTranscriptionModelSection()}
               </div>
               <InputGroup
                 leftIcon="search"

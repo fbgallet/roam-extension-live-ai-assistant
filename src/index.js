@@ -28,6 +28,7 @@ import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
   getModelsInfo,
   imageGenerationModels,
+  transcriptionModels,
   updateTokenCounter,
 } from "./ai/modelsInfo";
 import {
@@ -158,6 +159,11 @@ export function setDefaultModel(str = "gpt-5.1") {
     extensionStorage.get("chatRoles"),
     defaultModel.includes("first") ? undefined : defaultModel,
   );
+}
+
+export function setTranscriptionModel(modelId) {
+  transcriptionModel = modelId;
+  extensionStorage.set("transcriptionModel", modelId);
 }
 
 export function updateAvailableModels() {
@@ -758,20 +764,21 @@ function getPanelConfig() {
       {
         id: "transcriptionModel",
         name: "Voice transcription model",
-        description: "Choose which OpenAI voice transcription model to use: ",
+        description:
+          "Choose which voice transcription model to use. OpenAI models (whisper-1, gpt-4o-transcribe…) need an OpenAI key; Gemini models need a Google key (the provider is selected automatically from the model): ",
         action: {
           type: "select",
-          items: ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"],
+          items: transcriptionModels,
           onChange: (evt) => {
-            transcriptionModel = evt;
+            setTranscriptionModel(evt);
           },
         },
       },
       {
         id: "whisper",
-        name: "Use OpenAI Speech API",
+        name: "Use AI transcription (cloud)",
         description:
-          "Use OpenAI Speech API (former Whisper) (paid service) for transcription. If disabled, free system speech recognition will be used:",
+          "Use a cloud AI speech-to-text model (paid service, OpenAI or Gemini depending on the selected transcription model) instead of the free system speech recognition:",
         action: {
           type: "switch",
           onChange: (evt) => {

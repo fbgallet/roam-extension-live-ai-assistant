@@ -37,6 +37,9 @@ import {
   isTranslateIconDisplayed,
   isUsingWhisper,
   openaiLibrary,
+  googleLibrary,
+  GROK_API_KEY,
+  transcriptionModel,
   extensionStorage,
   uidsInPrompt,
   defaultModel,
@@ -301,6 +304,19 @@ function VoiceRecorder({
         });
     } else {
       if (!stream.current) stream.current = await getStream();
+      // Resume an existing paused session instead of spinning up a new recorder.
+      // Using a single MediaRecorder with pause()/resume() keeps the whole
+      // recording in ONE valid webm; creating a new recorder per resume produced
+      // several standalone webm files whose concatenation only decodes the first
+      // segment, so every part after the first pause was silently dropped.
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state === "paused"
+      ) {
+        mediaRecorderRef.current.resume();
+        setAreCommandsToDisplay(true);
+        return;
+      }
       mediaRecorderRef.current = newMediaRecorder(
         audioChunk.current,
         stream.current /*? stream.current : await getStream()*/
@@ -334,11 +350,16 @@ function VoiceRecorder({
           console.error(e);
         });
     } else {
-      if (
-        mediaRecorderRef.current &&
-        mediaRecorderRef.current.state === "recording"
-      ) {
-        mediaRecorderRef.current.stop();
+      if (!mediaRecorderRef.current) return;
+      const state = mediaRecorderRef.current.state;
+      if (isToTranscribe.current) {
+        // Finalizing for transcription: close the session into a single webm.
+        if (state === "recording" || state === "paused")
+          mediaRecorderRef.current.stop();
+      } else if (state === "recording") {
+        // Temporary pause: keep the same recorder open so resume() appends to
+        // the same webm rather than starting a new file.
+        mediaRecorderRef.current.pause();
       }
     }
   };
@@ -433,6 +454,15 @@ function VoiceRecorder({
     if (isListening) {
       isToTranscribe.current = true;
       setIsListening(false);
+    } else if (
+      !isSafari &&
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "paused"
+    ) {
+      // Recording is paused (not yet finalized): close it so the single webm is
+      // built, then onstop runs voiceProcessing with the full recording.
+      isToTranscribe.current = true;
+      mediaRecorderRef.current.stop();
     } else if (record?.current || safariRecorder?.current?.activeStream)
       voiceProcessing();
     else {
@@ -507,7 +537,14 @@ function VoiceRecorder({
       }
     }
     const intervalId = await displaySpinner(targetUid);
-    const hasKey = openaiLibrary && openaiLibrary.key !== "";
+    // Provider is picked from the selected transcription model: Gemini ids need a
+    // Google key, Grok ids need a Grok key, everything else needs an OpenAI key.
+    const selectedTranscriptionModel = (transcriptionModel || "").toLowerCase();
+    const hasKey = selectedTranscriptionModel.includes("gemini")
+      ? !!googleLibrary
+      : selectedTranscriptionModel.includes("grok")
+      ? !!GROK_API_KEY
+      : openaiLibrary && openaiLibrary.key !== "";
     let transcribe =
       instantVoiceReco.current || audioFile
         ? isUsingWhisper && hasKey
@@ -707,6 +744,7 @@ function VoiceRecorder({
       } else {
         closeStream(stream.current);
         stream.current = null;
+        mediaRecorderRef.current = null;
       }
       startBlock.current = null;
       targetBlock.current = null;

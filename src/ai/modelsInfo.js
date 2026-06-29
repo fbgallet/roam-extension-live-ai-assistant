@@ -41,6 +41,54 @@ export const webSearchModels = Object.entries(MODEL_REGISTRY)
   .filter(([_, m]) => m.capabilities?.webSearch === true)
   .map(([_, m]) => m.id);
 
+// ==================== TRANSCRIPTION MODELS ====================
+// Models that can be selected for voice/audio transcription.
+
+// OpenAI dedicated transcription models (use the audio.transcriptions endpoint).
+// Also routed through Groq (whisper-large-v3) when "Use Whisper via Groq" is on.
+export const openaiTranscriptionModels = [
+  "whisper-1",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-transcribe",
+];
+
+// Gemini models able to transcribe audio (via generateContent, audioInput capability).
+// Image-output variants (Nano Banana) are excluded.
+export const geminiTranscriptionModels = Object.entries(MODEL_REGISTRY)
+  .filter(
+    ([_, m]) =>
+      m.provider === "Google" &&
+      m.capabilities?.audioInput === true &&
+      m.capabilities?.imageOutput !== true
+  )
+  .map(([_, m]) => m.id);
+
+// Grok (xAI) speech-to-text. Uses the dedicated /v1/stt endpoint (no model param),
+// so "grok-stt" is a synthetic id used only to select this provider.
+export const grokTranscriptionModels = ["grok-stt"];
+
+// Combined list of every transcription-capable model id (provider auto-detected
+// from the id, e.g. ids containing "gemini" route to Google, "grok" to xAI).
+export const transcriptionModels = [
+  ...openaiTranscriptionModels,
+  ...geminiTranscriptionModels,
+  ...grokTranscriptionModels,
+];
+
+// Display labels for synthetic transcription ids that aren't in MODEL_REGISTRY.
+const TRANSCRIPTION_MODEL_LABELS = {
+  "grok-stt": "Grok (xAI) Speech-to-Text",
+};
+
+// Human-readable label for a transcription model id (uses the registry name when known).
+export const getTranscriptionModelLabel = (id) => {
+  if (TRANSCRIPTION_MODEL_LABELS[id]) return TRANSCRIPTION_MODEL_LABELS[id];
+  const entry = Object.values(MODEL_REGISTRY).find(
+    (m) => m.id === id || m.name === id
+  );
+  return entry?.name || id;
+};
+
 // ==================== TOKEN LIMITS ====================
 // Proxy object that reads from MODEL_REGISTRY
 

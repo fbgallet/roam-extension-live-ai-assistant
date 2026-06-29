@@ -1,10 +1,23 @@
+### v.32 (upcoming, 2026) Voice transcription update
+
+**Updates**
+
+- Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models.
+- The transcription model can now also be chosen from the Models customization dialog (new "Transcription" selector), alongside the existing setting in the extension settings.
+
+**Fixed**
+
+- Pausing and resuming a recording multiple times no longer drops the audio recorded after the last pause.
+- OpenAI Whisper (whisper-1) no longer occasionally replaces the transcription with a repeated stray sentence: instruction text is no longer sent in the Whisper prompt (it was treated as content to echo on low-confidence audio).
+- Silent or non-speech recordings are now detected and skipped with a clear warning, instead of producing hallucinated text; for Whisper models, hallucinated/non-speech segments are also filtered out from the result.
+
 ### v.31 (June 10th, 2026)
 
 **Updates**
 
 - New models support: Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
 - Chat conversation is now saved locally and restored after a browser refresh (same-day auto-restore, with a button to restore a previous-day conversation)
-- Inline Context menu, new pin button for the context selection (keeps your context choices across runs instead of resetting each time)
+- In Context menu, new pin button for the context selection (keeps your context choices across runs instead of resetting each time)
 - Roam queries and :q queries nested in a Style are now executed automatically whenever the style is applied (dynamic, deterministic query context)
 
 **Fixed**

@@ -1,6 +1,6 @@
 /* ===== MODEL CONFIGURATION DIALOG ===== */
 .model-config-dialog {
-  width: 780px;
+  width: 860px;
   max-width: 90vw;
   max-height: 90vh;
 }
@@ -11,6 +11,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  min-height: 72vh;
 }
 
 /* Sticky header section */
@@ -308,7 +309,8 @@
 }
 
 .default-model-section.default-websearch-section,
-.default-model-section.default-imagegen-section {
+.default-model-section.default-imagegen-section,
+.default-model-section.default-transcription-section {
   margin: 8px 0 8px 0;
 }
 
@@ -387,22 +389,48 @@
   color: #93c5fd;
 }
 
-/* ===== SECONDARY DEFAULT MODELS (Web Search & Image Gen) ===== */
+/* ===== SECONDARY DEFAULT MODELS (Web Search, Image Gen & Transcription) ===== */
 .default-websearch-section,
-.default-imagegen-section {
+.default-imagegen-section,
+.default-transcription-section {
   flex: 1;
+  min-width: 0;
   min-height: 38px;
-  padding: 8px 12px;
+  padding: 8px 10px;
   background: #f9fafb;
   border: 1px solid #d1d5db;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   opacity: 0.85;
   transition: all 0.2s;
 }
 
+/* Keep the three secondary cards' content fully visible at ~1/3 width each */
+.default-websearch-section .default-model-compact,
+.default-imagegen-section .default-model-compact,
+.default-transcription-section .default-model-compact {
+  gap: 6px;
+}
+
+.default-websearch-section .default-model-name,
+.default-imagegen-section .default-model-name {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.default-transcription-section .bp5-html-select,
+.default-transcription-section .bp3-html-select,
+.default-transcription-section .bp5-html-select select,
+.default-transcription-section .bp3-html-select select {
+  font-size: 11px;
+  min-width: 0;
+}
+
 .default-websearch-section:hover,
-.default-imagegen-section:hover {
+.default-imagegen-section:hover,
+.default-transcription-section:hover {
   opacity: 1;
   border-color: #9ca3af;
 }
@@ -431,19 +459,31 @@
 
 .default-websearch-section .default-label {
   color: #1e40af;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .default-imagegen-section .default-label {
   color: #be185d;
-  font-size: 11px;
+  font-size: 10px;
+}
+
+.default-transcription-section .default-pin-icon {
+  color: #0d9488;
+}
+
+.default-transcription-section .default-label {
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 /* Dark mode for secondary defaults */
 .bp5-dark .default-websearch-section,
 .bp3-dark .default-websearch-section,
 .bp5-dark .default-imagegen-section,
-.bp3-dark .default-imagegen-section {
+.bp3-dark .default-imagegen-section,
+.bp5-dark .default-transcription-section,
+.bp3-dark .default-transcription-section {
   background: #293742;
   border-color: #5c7080;
 }
@@ -532,6 +572,13 @@
 @media (max-width: 768px) {
   .model-config-dialog {
     width: 95vw;
+  }
+
+  /* No more than 2 secondary cards per row on narrow screens */
+  .default-websearch-section,
+  .default-imagegen-section,
+  .default-transcription-section {
+    flex: 1 1 calc(50% - 4px);
   }
 
   .model-card {

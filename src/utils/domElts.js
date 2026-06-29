@@ -175,30 +175,38 @@ export const displaySpinner = async (targetUid) => {
   }
 
   let targetBlockElt, spinner, intervalId;
-  setTimeout(() => {
-    targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
+  // Wait ~100ms for the target block to be rendered in the DOM, but AWAIT it so the
+  // real intervalId is returned. Returning before the setTimeout fired meant the id
+  // was always undefined: the interval was never cleared, and a fast-returning caller
+  // (e.g. the silence guard) could call removeSpinner BEFORE the spinner even existed,
+  // leaving the dots animating forever.
+  await new Promise((resolve) => {
+    setTimeout(() => {
+      targetBlockElt = document.querySelector(`[id*="${targetUid}"]`);
 
-    // If block doesn't exist in DOM (e.g., chat-agent-tool, query-composer), skip spinner
-    if (!targetBlockElt) {
-      console.warn(
-        "⚠️ displaySpinner: Block not found in DOM for UID:",
-        targetUid,
-      );
-      return;
-    }
+      // If block doesn't exist in DOM (e.g., chat-agent-tool, query-composer), skip spinner
+      if (!targetBlockElt) {
+        console.warn(
+          "⚠️ displaySpinner: Block not found in DOM for UID:",
+          targetUid,
+        );
+        return resolve();
+      }
 
-    if (targetBlockElt?.tagName.toLowerCase() === "textarea") {
-      targetBlockElt = targetBlockElt.parentElement;
-    }
-    const previousSpinner = targetBlockElt.querySelector(".speech-spinner");
-    if (previousSpinner) previousSpinner.remove();
-    spinner = document.createElement("strong");
-    spinner.classList.add("speech-spinner");
-    if (targetBlockElt) targetBlockElt.appendChild(spinner);
-    intervalId = setInterval(() => {
-      updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
-    }, 300);
-  }, 100);
+      if (targetBlockElt?.tagName.toLowerCase() === "textarea") {
+        targetBlockElt = targetBlockElt.parentElement;
+      }
+      const previousSpinner = targetBlockElt.querySelector(".speech-spinner");
+      if (previousSpinner) previousSpinner.remove();
+      spinner = document.createElement("strong");
+      spinner.classList.add("speech-spinner");
+      if (targetBlockElt) targetBlockElt.appendChild(spinner);
+      intervalId = setInterval(() => {
+        updateSpinnerText(spinner, [" .", " ..", " ...", " "]);
+      }, 300);
+      resolve();
+    }, 100);
+  });
   return intervalId;
 
   function updateSpinnerText(container, frames) {

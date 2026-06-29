@@ -18,35 +18,17 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### 🆕 New in v.30 (June 10th, 2026)
+
+- **New models support**: Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
+- Chat conversation is now saved locally and restored after a browser refresh
+- In Context menu, new pin button for the context selection
+- Roam queries and :q queries nested in a Style: their results are automatically added to the context
+
 ### 🆕 New in v.30 (April 27th, 2026)
 
 - **Debate mode** in LLM Council: 2–6 participants take turns in a live. Configure each with a model, a role and optionally a name (the model will automatically embody named thinkers or fictional characters). Presets included. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
 - **New models support**: GPT 5.5, Opus 4.7, DeepSeek V4, GPT Image 2.
-
-### 🆕 New in v.29 (April 2026)
-
-- **LLM Council mode** in Chat: orchestrate multiple models to generate, evaluate and refine answers. Switch with `/council`.
-- **Vector Search tool** (experimental): search your Roam graph and uploaded files by meaning using semantic vector search — choose between a free local provider (runs entirely in your browser, no API key) or OpenAI's vector store.
-- **Chat with :q Datomic query results**: a new "Chat with results" option appears in the settings menu of any `:q` query table
-- **Slash commands to force-use tools**: type `/` followed by any tool name (e.g., `/vector`, `/ask_your_graph`, `/run_smartblock`) to use it for a single turn, even if disabled — your persistent settings stay unchanged.
-- **Run SmartBlock tool**: trigger any SmartBlock workflow directly from chat
-- **New models support**: Grok 4.20, GPT-5.4-mini, Gemini 3.1 Flash Lite, Nano Banana 2
-- **Advanced parameters** in Chat panel for LLMs: max_tokens, temperature, top_p, presence_penalty (not available for all providers)
-- **Public API for developers** (`window.LiveAI_API`): other Roam extensions can now leverage Live AI's generative AI capabilities. Opt-in, secure, and rate-limited. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-api.md)
-
-### 🆕 New in v.27 (February 2026)
-
-- New button to instantly Chat with native query results (similar to Chat with linked references).
-- Models menu & customization entirely revamped
-- A lot of new models available (and now it's easier to add new ones): GPT-5.2, Claude Opus 4.6 & Sonnet 4.6, Gemini 3 Flash, GPT Image 1.5, Grok Imagine. DeepSeek models are back.
-- New button and dropdown to handle thinking effort of reasoning models.
-- New tools for Chat agent (in chat panel):
-  - Edition: create Page or blocks, update or detele blocks (with human validation)
-  - Interaction: Ask user choice (for poll, QCM...) and Random pick (from context or any list)
-- Skills now support 'Records', capacity to write output at any defined place in your graph (see detailed [doc about Live AI Skills here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))
-- New context options in Context menu: 'Siblings', 'Path' (ancestors) and Queries (Roam querie and :q queries)
-- Generate PDF/DOCX/PPTX documents (Anthropic API Key requested)
-- Any message in Chat panel is editable (rendered as Roam blocks)
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

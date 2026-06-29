@@ -84,6 +84,91 @@ const parseMarkdownTable = (tableText: string): string => {
   return html;
 };
 
+/**
+ * If the given text is (or contains) a JSON API error body, pull the inner
+ * `error.message` out of it. Providers sometimes prefix the JSON with a status
+ * code (e.g. `404 {"type":"error",...}`), so we scan from the first brace.
+ * Returns undefined when there's nothing useful to extract.
+ */
+const tryParseApiErrorMessage = (text: string): string | undefined => {
+  if (!text || typeof text !== "string") return undefined;
+
+  const jsonStart = text.indexOf("{");
+  if (jsonStart === -1) return undefined;
+
+  try {
+    const parsed = JSON.parse(text.slice(jsonStart));
+    const message = parsed?.error?.message || parsed?.message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  } catch {
+    // Not valid JSON — nothing to extract
+  }
+  return undefined;
+};
+
+/**
+ * Extract a human-readable message from an error thrown during an LLM / API call.
+ *
+ * Providers (Anthropic, OpenAI, Google) and LangChain wrap their errors in
+ * different shapes. The underlying API error body usually looks like:
+ *   { "type": "error", "error": { "type": "not_found_error", "message": "..." } }
+ * but the thrown JS error may expose that body on `.error`, `.error.error`, in a
+ * `.message` string (sometimes as raw JSON), or under `.response.data`.
+ *
+ * Returns a clean message when one can be found, otherwise undefined.
+ */
+export const extractErrorMessage = (error: any): string | undefined => {
+  if (!error) return undefined;
+
+  if (typeof error === "string") {
+    return tryParseApiErrorMessage(error) || error.trim() || undefined;
+  }
+
+  // Common nested locations for the provider's { type, message } object
+  const candidates = [
+    error?.error?.error,
+    error?.error,
+    error?.response?.data?.error,
+    error?.response?.data,
+    error?.body?.error,
+    error?.body,
+    error?.data?.error,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (typeof candidate === "string") {
+      const parsed = tryParseApiErrorMessage(candidate);
+      if (parsed) return parsed;
+    } else if (
+      typeof candidate.message === "string" &&
+      candidate.message.trim()
+    ) {
+      // The message itself may be raw JSON wrapping the real message
+      return tryParseApiErrorMessage(candidate.message) || candidate.message.trim();
+    }
+  }
+
+  // Fall back to the standard Error.message
+  if (typeof error.message === "string" && error.message.trim()) {
+    return tryParseApiErrorMessage(error.message) || error.message.trim();
+  }
+
+  return undefined;
+};
+
+/**
+ * Build the content for an assistant error message, appending the explicit
+ * provider/API error (rendered as a Roam ERROR callout) when one is available.
+ */
+export const formatChatErrorContent = (
+  baseMessage: string,
+  error: any,
+): string => {
+  const detail = extractErrorMessage(error);
+  return detail ? `${baseMessage}\n\n> [[!ERROR]] ${detail}` : baseMessage;
+};
+
 // Convert chat messages to agent conversation history
 export const buildConversationHistory = (chatMessages: ChatMessage[]) => {
   return chatMessages.map((msg) => ({

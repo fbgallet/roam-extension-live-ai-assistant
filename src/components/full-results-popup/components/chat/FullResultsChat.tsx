@@ -47,6 +47,7 @@ import {
   calculateTotalTokens,
   convertMarkdownToRoamFormat,
   hasRealMessages,
+  formatChatErrorContent,
 } from "../../utils/chatMessageUtils";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessagesDisplay } from "./ChatMessagesDisplay";
@@ -729,8 +730,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           console.error("Auto-execution error:", error);
           const errorMessage: ChatMessage = {
             role: "assistant",
-            content:
+            content: formatChatErrorContent(
               "Sorry, I encountered an error processing your request with the command. Please try again.",
+              error,
+            ),
             timestamp: new Date(),
           };
           setChatMessages((prev) => [...prev, errorMessage]);
@@ -2502,8 +2505,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       console.error("Error executing command:", error);
       const errorMessage: ChatMessage = {
         role: "assistant",
-        content:
+        content: formatChatErrorContent(
           "I encountered an error processing your request. Please try again.",
+          error,
+        ),
         timestamp: new Date(),
       };
       setChatMessages((prev) => [...prev, errorMessage]);
@@ -2973,8 +2978,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         console.error("Chat error:", error);
         const errorMessage: ChatMessage = {
           role: "assistant",
-          content:
+          content: formatChatErrorContent(
             "Sorry, I encountered an error processing your request. Please try again.",
+            error,
+          ),
           timestamp: new Date(),
         };
         setChatMessages((prev) => [...prev, errorMessage]);
@@ -4164,8 +4171,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       console.error("Chat processing error:", error);
       const errorMessage: ChatMessage = {
         role: "assistant",
-        content:
+        content: formatChatErrorContent(
           "I encountered an error processing your request. Please try again.",
+          error,
+        ),
         timestamp: new Date(),
       };
       setChatMessages((prev) => [...prev, errorMessage]);
