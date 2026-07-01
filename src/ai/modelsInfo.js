@@ -202,6 +202,9 @@ export async function getModelsInfo() {
           promptPricing: model.pricing.prompt * 1000000,
           completionPricing: model.pricing.completion * 1000000,
           imagePricing: model.pricing.image * 1000,
+          // Used to auto-detect reasoning support (OpenRouter exposes a
+          // "reasoning" entry in supported_parameters for thinking models).
+          supportedParameters: model.supported_parameters || [],
         };
       });
     return result;

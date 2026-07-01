@@ -19,6 +19,10 @@ import "./ModelCard.css";
  * @param {boolean} props.isCustom - Whether model is a custom (user-added) model
  * @param {boolean} props.isRemote - Whether model was loaded from remote updates
  * @param {boolean} props.isImageGen - Whether model is an image generation model
+ * @param {boolean} props.showThinkingDefault - Show the "think by default" switch
+ *   (only for thinking-capable models that aren't thinking-only)
+ * @param {boolean} props.thinkingDefaultOn - Current effective default thinking state
+ * @param {Function} props.onToggleThinkingDefault - Callback (modelId, checked)
  * @param {Function} props.onToggleVisibility - Callback when visibility toggled
  * @param {Function} props.onToggleFavorite - Callback when favorite toggled
  * @param {Function} props.onDragStart - Drag start handler
@@ -35,6 +39,9 @@ export const ModelCard = ({
   isCustom = false,
   isRemote = false,
   isImageGen = false,
+  showThinkingDefault = false,
+  thinkingDefaultOn = false,
+  onToggleThinkingDefault,
   onToggleVisibility,
   onToggleFavorite,
   onDragStart,
@@ -199,6 +206,23 @@ export const ModelCard = ({
               </>
             )}
         </div>
+        {showThinkingDefault && (
+          <div className="model-thinking-default">
+            <Tooltip
+              content="When on, thinking mode starts enabled for this model in new chats (you can still toggle it per conversation)."
+              position="top"
+            >
+              <Switch
+                checked={thinkingDefaultOn}
+                label="🧠 Think by default"
+                onChange={(e) =>
+                  onToggleThinkingDefault?.(model.id, e.target.checked)
+                }
+                className="thinking-default-switch"
+              />
+            </Tooltip>
+          </div>
+        )}
       </div>
 
       <Button

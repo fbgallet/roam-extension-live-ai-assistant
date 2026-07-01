@@ -89,6 +89,7 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.31 (June 10th, 20
 
 #### **New models**
 - Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
+- Image generation: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image) — faster & cheaper, all aspect ratios at 1K
 
 #### Chat agent updates
 - Conversation still available after browser refresh
@@ -159,6 +160,7 @@ export const BOTH_TIPS = [
   "**Did you know?** Live AI can **create quizzes** from your notes! Use the 'Quiz on provided content' command or use 'Quiz' style for active learning and knowledge testing",
   "**Did you know?** You can **analyze or transcribe audio files** with Gemini models! Just include audio URLs (`{{[[audio]]: url}}`) in your prompt or context. Use `start:` and `end:` to analyze specific segments (e.g., 'Transcribe this audio start: 2:00 end: 5:30')",
   "**Did you know?** You can **analyze videos** (including YouTube) with Gemini models! Insert video URLs in your prompt or context, and use `start:`/`end:` keywords to focus on specific segments (e.g., 'Summarize this video start: 1:30 end: 4:00')",
+  "**Thinking control**: For reasoning models, use the 🧠 thinking button (in chat or the context menu) to turn thinking on/off and pick the effort level for the current conversation. Models that support it (Claude Sonnet 5, Opus 4.x…) can now be run without thinking; models that always reason (Fable 5, o-series, Gemini 3, DeepSeek Reasoner) stay on. Set whether thinking starts on/off per model in the Models customization dialog, and the default effort (up to 'max') in the extension settings.",
 ];
 
 // Legacy: Combined tips array for backward compatibility

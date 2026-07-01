@@ -34,6 +34,7 @@ import {
 import {
   loadRemoteModelUpdates,
   registerOpenRouterModels,
+  registerCustomModelThinking,
 } from "./ai/modelRegistry";
 import {
   migrateModelConfig,
@@ -177,6 +178,12 @@ export function updateAvailableModels() {
     currentConfig.customModels?.openrouter?.map((m) => m.id) || [];
   groqModels = currentConfig.customModels?.groq?.map((m) => m.id) || [];
   ollamaModels = currentConfig.customModels?.ollama?.map((m) => m.id) || [];
+
+  // Refresh which custom models are user-declared reasoning models (full replace)
+  registerCustomModelThinking(
+    Object.values(currentConfig.customModels || {}).flat(),
+    { replace: true },
+  );
 
   // Refresh custom endpoint settings from config
   const openaiEndpoint = currentConfig.providerEndpoints?.openai;
@@ -679,10 +686,13 @@ function getPanelConfig() {
         id: "reasoningEffort",
         name: "Reasoning effort",
         description:
-          "Reasoning effort for OpenAI/Anthropic/Grok thinking models (higher is tokens and time consuming):",
+          "Default reasoning effort for thinking models (higher = more tokens & time). " +
+          "Not every level is valid for every model — it is mapped per provider " +
+          '("minimal" falls back to "low" on adaptive/Gemini/Grok models). The ' +
+          "in-chat thinking picker shows the exact levels for the selected model:",
         action: {
           type: "select",
-          items: ["minimal", "low", "medium", "high"],
+          items: ["minimal", "low", "medium", "high", "max"],
           onChange: (evt) => {
             reasoningEffort = evt;
           },

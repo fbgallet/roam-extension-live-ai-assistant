@@ -795,6 +795,8 @@ export async function imageGeneration(
   // Check if selected model requires Google API and fallback if not available
   const requiresGoogle =
     model === "gemini-2.5-flash-image" ||
+    model === "gemini-3.1-flash-image-preview" ||
+    model === "gemini-3.1-flash-lite-image" ||
     model === "gemini-3-pro-image-preview" ||
     model.includes("imagen-4.0");
 
@@ -856,6 +858,8 @@ export async function imageGeneration(
     isGoogleImagen &&
     model.includes("gemini") &&
     model !== "gemini-2.5-flash-image" &&
+    model !== "gemini-3.1-flash-image-preview" &&
+    model !== "gemini-3.1-flash-lite-image" &&
     model !== "gemini-3-pro-image-preview"
   ) {
     // Default to gemini-2.5-flash-image (nano banana)
@@ -883,6 +887,8 @@ export async function imageGeneration(
 
   const isNanoBanana =
     model === "gemini-2.5-flash-image" ||
+    model === "gemini-3.1-flash-image-preview" ||
+    model === "gemini-3.1-flash-lite-image" ||
     model === "gemini-3-pro-image-preview";
 
   const isNanoBananaPro = model === "gemini-3-pro-image-preview";

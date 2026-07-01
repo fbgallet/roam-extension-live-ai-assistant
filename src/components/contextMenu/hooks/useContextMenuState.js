@@ -9,7 +9,7 @@ import {
   alwaysExtractQuery,
 } from "../../..";
 import { BUILTIN_COMMANDS } from "../../../ai/prebuildCommands";
-import { isThinkingModel, hasThinkingDefault } from "../../../ai/modelRegistry";
+import { getModelThinkingDefault } from "../../../utils/modelConfigHelpers";
 
 const voidRoamContext = {
   linkedRefs: false,
@@ -63,7 +63,7 @@ export const useContextMenuState = () => {
 
   // Thinking Mode State
   const [thinkingEnabled, setThinkingEnabled] = useState(() =>
-    hasThinkingDefault(defaultModel)
+    getModelThinkingDefault(defaultModel)
   );
   const [reasoningEffort, setReasoningEffort] = useState(
     extensionStorage.get("reasoningEffort") || "low"
@@ -177,8 +177,8 @@ export const useContextMenuState = () => {
       setIncludePdfInContext(false);
       setIncludeQueryInContext(false);
     }
-    // Reset thinking to default model's setting
-    setThinkingEnabled(hasThinkingDefault(defaultModel));
+    // Reset thinking to default model's (possibly user-overridden) setting
+    setThinkingEnabled(getModelThinkingDefault(defaultModel));
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;

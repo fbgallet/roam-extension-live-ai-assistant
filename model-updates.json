@@ -1,29 +1,12 @@
 {
   "models": {
-    "claude-fable-5": {
-      "id": "claude-fable-5",
-      "name": "Claude Fable 5",
+    "claude-sonnet-5": {
+      "id": "claude-sonnet-5",
+      "name": "Claude Sonnet 5",
       "provider": "Anthropic",
       "contextLength": 1000000,
       "maxOutput": 128000,
-      "pricing": { "input": 10, "output": 50 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "thinkingDefault": false,
-      "visibleByDefault": true,
-      "aliases": ["claude-fable", "claude fable"]
-    },
-    "claude-opus-4-8": {
-      "id": "claude-opus-4-8",
-      "name": "Claude Opus 4.8",
-      "provider": "Anthropic",
-      "contextLength": 1000000,
-      "maxOutput": 128000,
-      "pricing": { "input": 5, "output": 25 },
+      "pricing": { "input": 3, "output": 15 },
       "capabilities": {
         "thinking": true,
         "imageInput": true,
@@ -32,41 +15,7 @@
       },
       "thinkingDefault": true,
       "visibleByDefault": true,
-      "aliases": ["claude-4.8-opus", "claude opus", "claude opus 4.8"]
-    },
-    "gemini-3.5-flash": {
-      "id": "gemini-3.5-flash",
-      "name": "Gemini 3.5 Flash",
-      "provider": "Google",
-      "contextLength": 1048576,
-      "maxOutput": 65536,
-      "pricing": { "input": 1.5, "output": 9 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true,
-        "videoInput": true,
-        "audioInput": true
-      },
-      "thinkingDefault": false,
-      "visibleByDefault": true,
-      "aliases": ["gemini-3-5-flash"]
-    },
-    "grok-4.3": {
-      "id": "grok-4.3",
-      "name": "Grok 4.3",
-      "provider": "Grok",
-      "contextLength": 1000000,
-      "pricing": { "input": 1.5, "output": 2.5 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "aliases": ["grok-4-3", "grok-4", "grok-4-1-fast"]
+      "aliases": ["claude-sonnet", "claude-sonnet-5", "claude sonnet 5"]
     }
   }
 }

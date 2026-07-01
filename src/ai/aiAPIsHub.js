@@ -49,7 +49,8 @@ import {
   useCompletionApi,
   getTemperatureConfig,
   isThinkingModel,
-  usesAdaptiveThinking,
+  rejectsSamplingParams,
+  resolveThinkingConfig,
 } from "./modelRegistry";
 import {
   pdfLinkRegex,
@@ -459,13 +460,12 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
 
   // Handle thinking mode if explicitly set
   if (thinkingEnabled !== undefined) {
-    const { getApiModelId, hasThinkingDefault } = require("./modelRegistry");
+    const { getApiModelId, isThinkingOnly } = require("./modelRegistry");
 
-    // Get the model's thinking default
-    const modelThinkingDefault = hasThinkingDefault(model);
-
-    // For models with thinkingDefault=true, thinking is always on
-    const finalThinkingEnabled = modelThinkingDefault || thinkingEnabled;
+    // Thinking-only models (Fable 5, o-series, Gemini 3, …) can't be turned off,
+    // so they're always on. Every other model honors the user's toggle —
+    // including disabling it (thinkingDefault only sets the toggle's start state).
+    const finalThinkingEnabled = isThinkingOnly(model) || thinkingEnabled;
 
     // Update the ID if the model has thinking ID suffix (e.g., Grok)
     // Use llm.id (already stripped of provider prefix) so unregistered dynamic
@@ -568,7 +568,10 @@ export async function claudeCompletion({
         model: thinking ? model.replace("+thinking", "") : model,
         messages,
       };
-      if (modelTemperature !== null) options.temperature = modelTemperature;
+      // Claude Opus 4.7+, Sonnet 5, and Fable/Mythos 5 reject sampling
+      // parameters (temperature/top_p/top_k) with a 400 error.
+      if (modelTemperature !== null && !rejectsSamplingParams(model))
+        options.temperature = modelTemperature;
       if (streamResponse && responseFormat === "text") options.stream = true;
 
       let isUrlToFetch;
@@ -623,30 +626,17 @@ export async function claudeCompletion({
           "code-execution-2025-08-25,skills-2025-10-02,files-api-2025-04-14";
       }
 
-      if (thinking) {
-        if (usesAdaptiveThinking(model)) {
-          // Opus 4.6+: adaptive thinking with effort parameter
-          options.thinking = { type: "adaptive" };
-          options.output_config = {
-            effort: reasoningEffort === "minimal" ? "low" : reasoningEffort,
-          };
-        } else {
-          // Legacy Claude models: enabled thinking with budget_tokens
-          options.thinking = {
-            type: "enabled",
-            budget_tokens:
-              reasoningEffort === "minimal"
-                ? 1024
-                : reasoningEffort === "low"
-                  ? 2500
-                  : reasoningEffort === "medium"
-                    ? 4096
-                    : reasoningEffort === "max"
-                      ? 16000
-                      : 8000,
-          };
-        }
-      }
+      // Thinking params (adaptive vs legacy budget + effort) come from the
+      // central resolver. When the user explicitly disables thinking on an
+      // adaptive model it returns {type:"disabled"} — omitting the param would
+      // leave adaptive thinking on by default.
+      const thinkingCfg = resolveThinkingConfig(model, {
+        enabled: thinking,
+        effort: reasoningEffort,
+      });
+      if (thinkingCfg.thinking) options.thinking = thinkingCfg.thinking;
+      if (thinkingCfg.outputConfig)
+        options.output_config = thinkingCfg.outputConfig;
       const usage = {
         input_tokens: 0,
         output_tokens: 0,
@@ -1004,27 +994,28 @@ export async function openaiCompletionLegacy({
     }
     console.log("model :>> ", modelWithOnline);
 
-    if (
-      model.includes("o3") ||
-      model.includes("o4") ||
-      (model.includes("gpt-5") && thinking)
-    ) {
-      // OpenAI reasoning APIs accept minimal/low/medium/high — map "max" to "high"
-      const effort = reasoningEffort === "max" ? "high" : reasoningEffort;
-      if (withPdf) options["reasoning"] = { effort };
-      else options["reasoning_effort"] = effort;
+    // Central resolver decides thinking on/off + provider-mapped effort.
+    // Reused by the Grok block below (same function serves OpenAI/DeepSeek/Grok).
+    const thinkingCfg = resolveThinkingConfig(model, {
+      enabled: thinking,
+      effort: reasoningEffort,
+    });
+
+    // OpenAI reasoning models (o-series always on; gpt-5 follows the toggle).
+    if (thinkingCfg.scheme === "openai-reasoning" && thinkingCfg.effort) {
+      if (withPdf) options["reasoning"] = { effort: thinkingCfg.effort };
+      else options["reasoning_effort"] = thinkingCfg.effort;
     }
 
-    // DeepSeek V4 models (deepseek-v4-pro, deepseek-v4-flash) have thinking
-    // enabled by default at the API level. Strict equality so undefined
-    // (no user preference) falls through to the API default (thinking on).
-    if (model.includes("deepseek-v4")) {
-      if (thinking === false) {
-        options["thinking"] = { type: "disabled" };
-      } else if (thinking === true) {
-        // DeepSeek V4 supports the full effort range including "max".
-        options["thinking"] = { type: "enabled", effort: reasoningEffort };
-      }
+    // DeepSeek V4 (deepseek-v4-pro/flash) is thinking-on by default at the API;
+    // the resolver returns a param only for an explicit on/off preference.
+    if (thinkingCfg.scheme === "deepseek-v4" && thinkingCfg.thinking) {
+      options["thinking"] = thinkingCfg.thinking;
+    }
+
+    // OpenRouter unified reasoning param (auto-detected reasoning models).
+    if (thinkingCfg.scheme === "openrouter" && thinkingCfg.reasoning) {
+      options["reasoning"] = thinkingCfg.reasoning;
     }
     if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
@@ -1053,20 +1044,12 @@ export async function openaiCompletionLegacy({
           type: "x_search",
         },
       ];
-      if (model.includes("grok-3-mini") && !model.includes("high")) {
-        options["reasoning_effort"] =
-          reasoningEffort === "high" ? "high" : "low";
-      }
-      // grok-4.3 controls reasoning via reasoning_effort (no ID suffix).
-      // "none" disables reasoning; otherwise low (default)/medium/high.
-      if (model === "grok-4.3") {
-        options["reasoning_effort"] = !thinking
-          ? "none"
-          : reasoningEffort === "max" || reasoningEffort === "high"
-            ? "high"
-            : reasoningEffort === "medium"
-              ? "medium"
-              : "low";
+      // grok-3-mini: low/high (skip when a "-high" variant is baked into the id).
+      // grok-4.x: reasoning_effort none/low/medium/high ("none" disables reasoning).
+      if (thinkingCfg.scheme === "grok-mini" && !model.includes("high")) {
+        options["reasoning_effort"] = thinkingCfg.effort;
+      } else if (thinkingCfg.scheme === "grok-effort") {
+        options["reasoning_effort"] = thinkingCfg.effort;
       }
     }
 
@@ -1299,20 +1282,25 @@ export async function openaiResponse({
     }
     if (tools.length) options.tools = tools;
 
-    // Handle reasoning for thinking models
+    // Handle reasoning for thinking models via the central resolver.
+    const thinkingCfg = resolveThinkingConfig(model, {
+      enabled: thinking,
+      effort: reasoningEffort,
+    });
+    // OpenAI reasoning (Responses API): o-series always on; gpt-5 follows the
+    // toggle. effort is capped (max→high) by the resolver.
     if (
-      thinking ||
-      model.includes("o3") ||
-      model.includes("o4") ||
-      (model.includes("gpt-5") &&
-        !model.includes("search") &&
-        model !== "gpt-5.1")
+      thinkingCfg.scheme === "openai-reasoning" &&
+      thinkingCfg.effort &&
+      !model.includes("search")
     ) {
-      options.reasoning = { effort: reasoningEffort };
+      options.reasoning = { effort: thinkingCfg.effort };
     }
-    // Grok-3-mini has special reasoning effort handling
-    if (model.includes("grok-3-mini") && !model.includes("high")) {
-      options.reasoning_effort = reasoningEffort === "high" ? "high" : "low";
+    // Grok reasoning_effort (grok-3-mini low/high; grok-4.x none/low/medium/high).
+    if (thinkingCfg.scheme === "grok-mini" && !model.includes("high")) {
+      options.reasoning_effort = thinkingCfg.effort;
+    } else if (thinkingCfg.scheme === "grok-effort") {
+      options.reasoning_effort = thinkingCfg.effort;
     }
 
     // Temperature handling (provider-aware)
@@ -1834,9 +1822,11 @@ export async function googleCompletion({
       generationConfig.temperature = modelTemperature;
     }
 
-    if (isGoogleThinkingModel) {
+    // Gemini thinkingLevel (with per-model floors) comes from the resolver.
+    const thinkingCfg = resolveThinkingConfig(model, { effort: reasoningEffort });
+    if (thinkingCfg.scheme === "gemini" && thinkingCfg.level) {
       generationConfig["thinkingConfig"] = {
-        thinkingLevel: reasoningEffort === "minimal" ? "low" : reasoningEffort,
+        thinkingLevel: thinkingCfg.level,
         includeThoughts: true,
       };
     }
@@ -2063,6 +2053,7 @@ export async function ollamaCompletion({
   content = "",
   responseFormat = "text",
   targetUid,
+  thinking,
 }) {
   let respStr = "";
   try {
@@ -2070,23 +2061,31 @@ export async function ollamaCompletion({
       num_ctx: 8192,
     };
     if (modelTemperature !== null) options.temperature = modelTemperature;
+
+    // Ollama controls reasoning via a top-level boolean `think` (no effort).
+    // Only sent for models declared as reasoning models (scheme "ollama").
+    const thinkingCfg = resolveThinkingConfig(model, { enabled: thinking });
+    const requestBody = {
+      model: model,
+      messages: [
+        {
+          role: "system",
+          content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
+        },
+      ].concat(prompt),
+      options: options,
+      format: responseFormat.includes("json") ? "json" : null,
+      stream: false,
+    };
+    if (thinkingCfg.scheme === "ollama" && thinkingCfg.think !== undefined) {
+      requestBody.think = thinkingCfg.think;
+    }
     // need to allow * CORS origin
     // command MacOS terminal: launchctl setenv OLLAMA_ORIGINS "*"
     // then, close terminal and relaunch ollama serve
     const response = await axios.post(
       `${ollamaServer ? ollamaServer : "http://localhost:11434"}/api/chat`,
-      {
-        model: model,
-        messages: [
-          {
-            role: "system",
-            content: (systemPrompt ? systemPrompt + "\n\n" : "") + content,
-          },
-        ].concat(prompt),
-        options: options,
-        format: responseFormat.includes("json") ? "json" : null,
-        stream: false,
-      },
+      requestBody,
       {
         headers: {
           "Content-Type": "application/json",

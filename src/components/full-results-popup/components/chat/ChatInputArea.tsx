@@ -40,7 +40,7 @@ import {
 } from "./AdvancedOptionsMenu";
 import {
   isThinkingModel,
-  hasThinkingDefault,
+  isThinkingOnly,
 } from "../../../../ai/modelRegistry";
 import {
   getProviderModels,
@@ -1185,7 +1185,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         <ThinkingToggle
           modelId={selectedModel}
           supportsThinking={isThinkingModel(selectedModel)}
-          thinkingDefault={hasThinkingDefault(selectedModel)}
+          thinkingOnly={isThinkingOnly(selectedModel)}
           thinkingEnabled={thinkingEnabled}
           onThinkingChange={onThinkingChange || (() => {})}
         />

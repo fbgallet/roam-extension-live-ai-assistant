@@ -113,6 +113,8 @@ export async function handleImageGenerationCommand(
   // Note: OpenAI Images API doesn't support multi-turn conversation
   const isNanoBanana =
     imageModel === "gemini-2.5-flash-image" ||
+    imageModel === "gemini-3.1-flash-image-preview" ||
+    imageModel === "gemini-3.1-flash-lite-image" ||
     imageModel === "gemini-3-pro-image-preview";
 
   // Check if this is an explicit image generation command (not an edit in existing chat)

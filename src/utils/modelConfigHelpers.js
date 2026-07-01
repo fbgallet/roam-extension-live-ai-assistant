@@ -1,7 +1,15 @@
 import { extensionStorage } from "..";
 import { webSearchModels, imageGenerationModels, normalizeClaudeModel } from "../ai/modelsInfo";
 import { tokensLimit, modelsPricing, openRouterModelPricing } from "../ai/modelsInfo";
-import { hasCapability, getModelsByProvider, MODEL_REGISTRY } from "../ai/modelRegistry";
+import {
+  hasCapability,
+  getModelsByProvider,
+  MODEL_REGISTRY,
+  getModelByIdentifier,
+  hasThinkingDefault,
+  isThinkingOnly,
+  getCustomModelThinking,
+} from "../ai/modelRegistry";
 import {
   getNewModelIds,
   getDeprecatedModels,
@@ -361,6 +369,61 @@ export function getFavoriteModels() {
 }
 
 /**
+ * Stable key for storing per-model options in config.modelOptions. Normalizes
+ * any identifier (name, id, alias) to the registry's canonical id so the
+ * ModelConfigDialog and the chat/context-menu readers agree on the key.
+ * @param {string} identifier
+ * @returns {string}
+ */
+function modelOptionsKey(identifier) {
+  return getModelByIdentifier(identifier)?.id || identifier;
+}
+
+/**
+ * Resolve whether thinking should START ON for a model, given a specific config
+ * object. Precedence: thinking-only models are always on → user override in
+ * modelOptions → registry thinkingDefault.
+ * @param {Object} config - A model config object (saved or working copy)
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function resolveThinkingDefault(config, identifier) {
+  if (isThinkingOnly(identifier)) return true;
+  const override = config?.modelOptions?.[modelOptionsKey(identifier)]
+    ?.thinkingDefault;
+  if (typeof override === "boolean") return override;
+  // User-declared custom reasoning models carry their own default (on unless set).
+  const custom = getCustomModelThinking(identifier);
+  if (custom) return custom.thinkingDefault;
+  return hasThinkingDefault(identifier);
+}
+
+/**
+ * Effective "thinking on by default" for a model, reading the saved config.
+ * Use this to seed the per-session thinking toggle.
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function getModelThinkingDefault(identifier) {
+  return resolveThinkingDefault(getModelConfig(), identifier);
+}
+
+/**
+ * Return a new modelOptions object with the thinkingDefault override set for a
+ * model. Does not mutate the passed config.
+ * @param {Object} config - The config whose modelOptions to extend
+ * @param {string} identifier - Model identifier
+ * @param {boolean} value - The user's chosen default thinking state
+ * @returns {Object} New modelOptions object
+ */
+export function setThinkingDefaultOption(config, identifier, value) {
+  const key = modelOptionsKey(identifier);
+  const modelOptions = { ...(config?.modelOptions || {}) };
+  modelOptions[key] = { ...(modelOptions[key] || {}), thinkingDefault: value };
+  return modelOptions;
+}
+
+/**
  * Get metadata for a model (context length, pricing)
  * @param {string} modelId - Model ID
  * @returns {Object} Metadata object with contextLength and pricing
@@ -494,6 +557,8 @@ export function isImageGenModel(modelId) {
 export function isReasoningModel(modelId) {
   // Check registry capability first
   if (hasCapability(modelId, "thinking")) return true;
+  // User-declared custom reasoning models
+  if (getCustomModelThinking(modelId)) return true;
   // Fallback: string-based detection for custom/dynamic models
   const lower = modelId.toLowerCase();
   return (

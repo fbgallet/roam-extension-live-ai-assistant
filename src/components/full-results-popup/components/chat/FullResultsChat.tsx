@@ -58,7 +58,7 @@ import {
   getCustomStyles,
 } from "../../../../ai/dataExtraction";
 import { loadResultsFromRoamContext } from "../../utils/roamContextLoader";
-import { hasThinkingDefault } from "../../../../ai/modelRegistry";
+import { getModelThinkingDefault } from "../../../../utils/modelConfigHelpers";
 import {
   createTemporaryEditBlock,
   extractContentFromBlock,
@@ -1428,7 +1428,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
 
   // Thinking mode state (session-based, resets on model change)
   const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
-    return hasThinkingDefault(selectedModel);
+    return getModelThinkingDefault(selectedModel);
   });
 
   // Advanced options (per-session, reset on new chat)
@@ -1537,8 +1537,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setModelTokensLimit(
       modelAccordingToProvider(selectedModel).tokensLimit || 32000,
     );
-    // Reset thinking state based on new model's default
-    setThinkingEnabled(hasThinkingDefault(selectedModel));
+    // Reset thinking state based on new model's (possibly user-overridden) default
+    setThinkingEnabled(getModelThinkingDefault(selectedModel));
   }, [selectedModel]);
 
   // Persist chat-specific state whenever it changes

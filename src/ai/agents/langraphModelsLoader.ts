@@ -6,7 +6,11 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { updateTokenCounter } from "../modelsInfo";
 import { modelTemperature, reasoningEffort } from "../..";
-import { usesAdaptiveThinking, getMaxOutput } from "../modelRegistry";
+import {
+  rejectsSamplingParams,
+  getMaxOutput,
+  resolveThinkingConfig,
+} from "../modelRegistry";
 
 export interface AdvancedModelParams {
   maxTokens?: number;
@@ -90,12 +94,15 @@ export function modelViaLanggraph(
   // Apply per-session advanced parameters (override globals) — except maxTokens which is applied after provider setup
   const adv = llmInfos.advancedParams;
   if (adv) {
-    // Anthropic throws if temperature or topP are set when thinking is enabled
-    const isAnthropicThinking =
-      llmInfos.provider === "Anthropic" && llmInfos.thinking;
-    if (adv.temperature !== undefined && !isAnthropicThinking)
+    // Anthropic throws if temperature or topP are set when thinking is enabled.
+    // Additionally, Opus 4.7+, Sonnet 5, and Fable/Mythos 5 reject sampling
+    // parameters entirely (400), whether or not thinking is enabled.
+    const isAnthropicNoSampling =
+      llmInfos.provider === "Anthropic" &&
+      (llmInfos.thinking || rejectsSamplingParams(llmInfos.id));
+    if (adv.temperature !== undefined && !isAnthropicNoSampling)
       options.temperature = adv.temperature;
-    if (adv.topP !== undefined && !isAnthropicThinking)
+    if (adv.topP !== undefined && !isAnthropicNoSampling)
       options.topP = adv.topP;
     // presencePenalty: only supported by OpenAI-compatible providers (OpenAI, Ollama, DeepSeek)
     // Silently ignored by Anthropic/Google, so safe to set unconditionally
@@ -110,27 +117,23 @@ export function modelViaLanggraph(
     llmInfos.provider === "groq" ||
     llmInfos.provider === "Grok"
   ) {
-    // grok-4.3 controls reasoning via reasoning_effort (no ID suffix).
-    // "none" disables reasoning; otherwise low (default)/medium/high.
-    if (llmInfos.id === "grok-4.3") {
-      const effort = !llmInfos.thinking
-        ? "none"
-        : reasoningEffort === "max" || reasoningEffort === "high"
-          ? "high"
-          : reasoningEffort === "medium"
-            ? "medium"
-            : "low";
+    // Thinking on/off + provider-mapped effort come from the central resolver.
+    const thinkingCfg = resolveThinkingConfig(llmInfos.id, {
+      enabled: llmInfos.thinking,
+      effort: reasoningEffort,
+    });
+    if (
+      thinkingCfg.scheme === "grok-effort" ||
+      thinkingCfg.scheme === "grok-mini"
+    ) {
+      // Grok reasoning_effort (grok-4.x none/low/medium/high; grok-3-mini low/high).
       options.modelKwargs = {
         ...options.modelKwargs,
-        reasoning_effort: effort,
+        reasoning_effort: thinkingCfg.effort,
       };
-    } else if (llmInfos.thinking) {
-      // GPT-5 and Grok models use reasoning parameter.
-      // OpenAI/xAI accept minimal/low/medium/high — map "max" to "high".
-      if (llmInfos.id.includes("gpt-5") || llmInfos.provider === "Grok") {
-        const effort = reasoningEffort === "max" ? "high" : reasoningEffort;
-        options["reasoning"] = { effort, summary: "auto" };
-      }
+    } else if (thinkingCfg.scheme === "openai-reasoning" && thinkingCfg.effort) {
+      // GPT-5 / o-series reasoning effort.
+      options["reasoning"] = { effort: thinkingCfg.effort, summary: "auto" };
     }
     // if (llmInfos.provider === "OpenAI") options["useResponsesApi"] = true;
     // console.log("options :>> ", options);
@@ -142,6 +145,17 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "openRouter") {
+    // OpenRouter unified `reasoning` param for auto-detected reasoning models.
+    const orThinking = resolveThinkingConfig(llmInfos.id, {
+      enabled: llmInfos.thinking,
+      effort: reasoningEffort,
+    });
+    if (orThinking.scheme === "openrouter" && orThinking.reasoning) {
+      options.modelKwargs = {
+        ...options.modelKwargs,
+        reasoning: orThinking.reasoning,
+      };
+    }
     // if (llmInfos.id.includes("gemini")) {
     //   llm = new ChatGoogleGenerativeAI({
     //     model: llmInfos.id,
@@ -157,36 +171,30 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "ollama") {
+    // Ollama controls reasoning via a boolean `think` (scheme "ollama").
+    const ollamaThinking = resolveThinkingConfig(llmInfos.id, {
+      enabled: llmInfos.thinking,
+    });
     llm = new ChatOllama({
       model: llmInfos.id,
       ...options,
+      ...(ollamaThinking.scheme === "ollama" &&
+      ollamaThinking.think !== undefined
+        ? { think: ollamaThinking.think }
+        : {}),
       maxRetries: 2,
     });
   } else if (llmInfos.provider === "Anthropic") {
     options.maxTokens = getMaxOutput(llmInfos.id);
     options.streaming = true;
-    if (llmInfos.thinking) {
-      if (usesAdaptiveThinking(llmInfos.id)) {
-        // Opus & Sonnet 4.6+: adaptive thinking with effort parameter
-        options.thinking = { type: "adaptive" };
-        options["output_config"] = {
-          effort: reasoningEffort === "minimal" ? "low" : reasoningEffort,
-        };
-      } else {
-        // Legacy Claude models: enabled thinking with budget_tokens
-        const effortMapping = {
-          minimal: 1024,
-          low: 2500,
-          medium: 4096,
-          high: 8000,
-          max: 16000,
-        };
-        options.thinking = {
-          type: "enabled",
-          budget_tokens: effortMapping[reasoningEffort] || 2500,
-        };
-      }
-    }
+    // Adaptive vs legacy thinking + effort come from the central resolver.
+    const anthropicThinking = resolveThinkingConfig(llmInfos.id, {
+      enabled: llmInfos.thinking,
+      effort: reasoningEffort,
+    });
+    if (anthropicThinking.thinking) options.thinking = anthropicThinking.thinking;
+    if (anthropicThinking.outputConfig)
+      options["output_config"] = anthropicThinking.outputConfig;
 
     llm = new ChatAnthropic({
       model: llmInfos.id,
@@ -203,19 +211,17 @@ export function modelViaLanggraph(
     // DeepSeek V4 models (deepseek-v4-pro, deepseek-v4-flash) have thinking
     // enabled by default at the API. Strict equality so undefined falls
     // through to the API default (thinking on).
-    if (llmInfos.id.includes("deepseek-v4")) {
-      if (llmInfos.thinking === false) {
-        options.modelKwargs = {
-          ...options.modelKwargs,
-          thinking: { type: "disabled" },
-        };
-      } else if (llmInfos.thinking === true) {
-        // DeepSeek V4 supports the full effort range including "max".
-        options.modelKwargs = {
-          ...options.modelKwargs,
-          thinking: { type: "enabled", effort: reasoningEffort },
-        };
-      }
+    // DeepSeek V4: resolver returns a thinking param only for an explicit
+    // on/off preference (undefined → omit → API default is thinking-on).
+    const deepseekThinking = resolveThinkingConfig(llmInfos.id, {
+      enabled: llmInfos.thinking,
+      effort: reasoningEffort,
+    });
+    if (deepseekThinking.scheme === "deepseek-v4" && deepseekThinking.thinking) {
+      options.modelKwargs = {
+        ...options.modelKwargs,
+        thinking: deepseekThinking.thinking,
+      };
     }
     llm = new ChatDeepSeek({
       model: llmInfos.id,
@@ -225,20 +231,13 @@ export function modelViaLanggraph(
       },
     });
   } else if (llmInfos.provider === "Google") {
-    if (llmInfos.thinking && llmInfos.id.includes("gemini-3")) {
-      // Gemini accepts low/medium/high — map "max" to "high".
-      options["thinkingLevel"] =
-        reasoningEffort === "max" ? "high" : reasoningEffort;
-      if (
-        llmInfos.id === "gemini-3-pro-preview" &&
-        (reasoningEffort === "minimal" || reasoningEffort === "medium")
-      )
-        options["thinkingLevel"] = "low";
-      else if (
-        llmInfos.id === "gemini-3.1-pro-preview" &&
-        reasoningEffort === "minimal"
-      )
-        options["thinkingLevel"] = "low";
+    // Gemini thinkingLevel (with per-model floors) comes from the resolver.
+    const geminiThinking = resolveThinkingConfig(llmInfos.id, {
+      enabled: llmInfos.thinking,
+      effort: reasoningEffort,
+    });
+    if (geminiThinking.scheme === "gemini" && geminiThinking.level) {
+      options["thinkingLevel"] = geminiThinking.level;
       options["includeThoughts"] = true;
     }
     llm = new ChatGoogleGenerativeAI({
@@ -295,7 +294,9 @@ export const getLlmSuitableOptions = (
     !model.id.toLowerCase().includes("o1") &&
     !model.id.toLowerCase().includes("o3") &&
     !model.id.toLowerCase().includes("o4") &&
-    !model.id.toLowerCase().includes("gpt-5")
+    !model.id.toLowerCase().includes("gpt-5") &&
+    // Opus 4.7+, Sonnet 5, and Fable/Mythos 5 reject sampling params (400)
+    !rejectsSamplingParams(model.id)
   )
     outputOptions.temperature = temperature;
   // There is an issue with json_mode & GPT models in v.0.3 of Langchain OpenAI chat...

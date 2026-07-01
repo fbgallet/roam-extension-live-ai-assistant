@@ -1256,8 +1256,22 @@ export const getCustomStyleByUid = async (uid) => {
   // a style is resolved automatically. Dynamic import avoids a circular dependency
   // (queryContextExtractor imports from this module).
   try {
-    const { getContextFromQueries } = await import("./queryContextExtractor");
-    const queryContext = await getContextFromQueries({ prompt, context: "" });
+    const {
+      getContextFromQueries,
+      collectRoamQueryBlockUids,
+      collectDatomicQueryBlockUids,
+    } = await import("./queryContextExtractor");
+    // Resolve both Roam {{query:...}} and :q Datomic queries by their block UID
+    // (robust — Roam parses each block itself, so labelled/bare-reference queries
+    // and current/* symbols work), rather than by re-parsing the flattened text.
+    const queryBlockUids = collectRoamQueryBlockUids(uid);
+    const datomicBlockUids = collectDatomicQueryBlockUids(uid);
+    const queryContext = await getContextFromQueries({
+      prompt,
+      context: "",
+      queryBlockUids,
+      datomicBlockUids,
+    });
     if (queryContext) {
       prompt += "\n\n" + queryContext;
     }

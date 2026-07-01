@@ -14,14 +14,15 @@ import { getThinkingEffortOptions, usesAdaptiveThinking } from "../ai/modelRegis
  * @param {Object} props
  * @param {string} props.modelId - Current model identifier
  * @param {boolean} props.supportsThinking - Whether the model supports thinking
- * @param {boolean} props.thinkingDefault - Whether thinking is on by default for this model
+ * @param {boolean} props.thinkingOnly - Whether the model can ONLY run with thinking
+ *   (no way to disable it). When true, the enable/disable switch is hidden.
  * @param {boolean} props.thinkingEnabled - Current thinking state
  * @param {function} props.onThinkingChange - Callback when thinking state changes
  */
 export const ThinkingToggle = ({
   modelId,
   supportsThinking,
-  thinkingDefault,
+  thinkingOnly,
   thinkingEnabled,
   onThinkingChange,
 }) => {
@@ -37,8 +38,6 @@ export const ThinkingToggle = ({
 
   const handleThinkingToggle = (checked) => {
     onThinkingChange(checked);
-    // If model has thinkingDefault=true, we can't disable it (always-on models)
-    // This UI shouldn't allow toggle in that case
   };
 
   const handleEffortChange = async (effort) => {
@@ -64,8 +63,8 @@ export const ThinkingToggle = ({
     icon: level === "max" ? "flame" : level === "high" ? "double-chevron-up" : level === "medium" ? "double-chevron-up" : level === "low" ? "tick" : "small-tick",
   }));
 
-  // If model always has thinking (thinkingDefault), show indicator but no toggle
-  const alwaysOn = thinkingDefault;
+  // Thinking-only models can't be disabled: show an indicator but no toggle.
+  const alwaysOn = thinkingOnly;
 
   return (
     <div className="thinking-toggle">

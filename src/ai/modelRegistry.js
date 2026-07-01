@@ -14,7 +14,11 @@
  * - capabilities: { thinking, imageInput, imageOutput, webSearch, fileInput, videoInput, audioInput }
  * - visibleByDefault: Show in menu by default
  * - aliases: Alternative identifiers for matching
- * - thinkingDefault: If true, thinking mode is enabled by default
+ * - thinkingDefault: If true, the thinking toggle STARTS ON (user may turn it off).
+ * - thinkingOnly: If true, the model CANNOT run without thinking (e.g. Fable 5, o3,
+ *     deepseek-reasoner, Gemini 3). The UI hides the enable/disable switch and the
+ *     request layer always sends thinking params. Distinct from thinkingDefault,
+ *     which is merely the default state of a toggle the user can flip.
  * - thinkingIdSuffix: For models with separate IDs for reasoning/non-reasoning (e.g., Grok)
  * - modelType: Special type like "image-generation"
  */
@@ -217,6 +221,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: false,
     systemRole: "user",
     aliases: [],
@@ -236,6 +241,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: false,
     systemRole: "user",
     aliases: [],
@@ -253,6 +259,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: false,
     systemRole: "user",
     aliases: [],
@@ -270,6 +277,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: false,
     noStreaming: true,
     systemRole: "developer",
@@ -337,6 +345,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: true,
     aliases: ["claude-fable", "claude fable"],
   },
@@ -391,25 +400,26 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["claude-4.6-opus", "claude opus 4.6"],
   },
 
-  "claude-opus-4-5-20251101": {
-    id: "claude-opus-4-5-20251101",
-    name: "Claude Opus 4.5",
+  "claude-sonnet-5": {
+    id: "claude-sonnet-5",
+    name: "Claude Sonnet 5",
     provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 32000,
-    pricing: { input: 5, output: 25 },
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 3, output: 15 },
     capabilities: {
       thinking: true, // Supports thinking mode (toggled via UI)
       imageInput: true,
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: false,
-    aliases: ["claude-4.5-opus", "claude opus 4.5", "claude-opus-4-5"],
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["claude-sonnet", "claude-sonnet-5", "claude sonnet 5"],
   },
 
   "claude-sonnet-4-6": {
@@ -426,24 +436,8 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
-    aliases: ["claude-sonnet", "claude-sonnet-4.6", "claude sonnet 4.6"],
-  },
-  "claude-sonnet-4-5-20250929": {
-    id: "claude-sonnet-4-5-20250929",
-    name: "Claude Sonnet 4.5",
-    provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 64000,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      thinking: true, // Supports thinking mode (toggled via UI)
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
     visibleByDefault: false,
-    aliases: ["claude-sonnet-4.5", "claude-sonnet-4-5", "claude sonnet 4.5"],
+    aliases: ["claude-sonnet-4.6", "claude sonnet 4.6"],
   },
 
   "claude-haiku-4-5-20251001": {
@@ -479,6 +473,7 @@ export const MODEL_REGISTRY = {
       audioInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: true,
     aliases: ["gemini-3.1-pro"],
   },
@@ -498,7 +493,7 @@ export const MODEL_REGISTRY = {
       videoInput: true,
       audioInput: true,
     },
-    // thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: true,
     aliases: ["gemini-3-5-flash"],
   },
@@ -519,6 +514,7 @@ export const MODEL_REGISTRY = {
       audioInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: false,
     aliases: ["gemini-3-flash"],
   },
@@ -555,6 +551,21 @@ export const MODEL_REGISTRY = {
     modelType: "image-generation",
     visibleByDefault: true,
     aliases: ["nano-banana-2"],
+  },
+
+  "gemini-3.1-flash-lite-image": {
+    id: "gemini-3.1-flash-lite-image",
+    name: "Nano Banana 2 Lite",
+    provider: "Google",
+    pricing: { input: 0.1, inputImage: 0.1, output: 39 },
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+      editImage: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: ["nano-banana-2-lite"],
   },
 
   "gemini-2.5-flash-image": {
@@ -668,6 +679,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: false,
     aliases: ["deepseek-v3.2 thinking", "deepseek v3.2 thinking"],
   },
@@ -753,6 +765,57 @@ export const PROVIDER_LIBRARIES = {
   Groq: null,
   Ollama: null,
 };
+
+// ==================== CUSTOM MODEL THINKING ====================
+// Custom / dynamic models (native custom endpoints, Groq, Ollama, OpenRouter)
+// mostly don't live in MODEL_REGISTRY, so their thinking capability can't be
+// read the usual way. This runtime map, populated from user config by
+// registerCustomModelThinking(), lets the thinking helpers below recognize
+// user-declared reasoning models. Keyed by the model's raw id.
+export const CUSTOM_MODEL_THINKING = {}; // id -> { scheme, only, thinkingDefault }
+
+/**
+ * Register (or refresh) the thinking config of user-defined custom models.
+ * Only models flagged as reasoning models are stored; others are removed so a
+ * later un-flag takes effect.
+ * @param {Array<{id: string, capabilities?: object, thinkingScheme?: string, thinkingOnly?: boolean, thinkingDefault?: boolean}>} models
+ */
+export function registerCustomModelThinking(models = [], { replace = false } = {}) {
+  if (replace) {
+    for (const k of Object.keys(CUSTOM_MODEL_THINKING)) {
+      delete CUSTOM_MODEL_THINKING[k];
+    }
+  }
+  for (const m of models) {
+    if (!m?.id) continue;
+    const isThinking = m.capabilities?.thinking === true || !!m.thinkingScheme;
+    if (isThinking) {
+      CUSTOM_MODEL_THINKING[m.id] = {
+        scheme: m.thinkingScheme || "openai-reasoning",
+        only: m.thinkingOnly === true,
+        // Custom reasoning models default to thinking-on unless told otherwise.
+        thinkingDefault: m.thinkingDefault !== false,
+      };
+    } else {
+      delete CUSTOM_MODEL_THINKING[m.id];
+    }
+  }
+}
+
+/**
+ * Look up a custom model's thinking config by identifier (strips +thinking).
+ * @param {string} identifier
+ * @returns {{scheme: string, only: boolean, thinkingDefault: boolean}|null}
+ */
+export function getCustomModelThinking(identifier) {
+  if (!identifier) return null;
+  const cleanId = identifier.replace(/\+thinking/i, "").trim();
+  if (CUSTOM_MODEL_THINKING[cleanId]) return CUSTOM_MODEL_THINKING[cleanId];
+  // Custom models are keyed by their raw id, but chat/menu identifiers may carry
+  // a dynamic-provider prefix (openRouter/, groq/, ollama/) — try without it.
+  const stripped = cleanId.replace(/^(openRouter|groq|ollama)\//i, "");
+  return CUSTOM_MODEL_THINKING[stripped] || null;
+}
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -894,7 +957,9 @@ export function getProvider(identifier) {
  */
 export function isThinkingModel(identifier) {
   const model = getModelByIdentifier(identifier);
-  return model?.capabilities?.thinking === true;
+  if (model?.capabilities?.thinking === true) return true;
+  // Custom/dynamic models declared as reasoning models via the config UI.
+  return !!getCustomModelThinking(identifier);
 }
 
 /**
@@ -905,6 +970,23 @@ export function isThinkingModel(identifier) {
 export function hasThinkingDefault(identifier) {
   const model = getModelByIdentifier(identifier);
   return model?.thinkingDefault === true;
+}
+
+/**
+ * Check if a model can ONLY run with thinking (no way to disable it), e.g.
+ * Claude Fable/Mythos 5, OpenAI o-series, deepseek-reasoner, Gemini 3.
+ * The UI hides the enable/disable switch and the request layer always sends
+ * thinking params for these. This is distinct from hasThinkingDefault(), which
+ * is merely the initial state of a toggle the user is free to flip off.
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function isThinkingOnly(identifier) {
+  if (!identifier) return false;
+  const cleanId = identifier.replace(/\+thinking/i, "").trim();
+  const model = getModelByIdentifier(cleanId);
+  if (model?.thinkingOnly === true) return true;
+  return getCustomModelThinking(cleanId)?.only === true;
 }
 
 /**
@@ -926,6 +1008,29 @@ export function usesAdaptiveThinking(identifier) {
     model?.id === "claude-sonnet-4-6" ||
     model?.id === "claude-opus-4-7" ||
     model?.id === "claude-opus-4-8" ||
+    model?.id === "claude-sonnet-5" ||
+    model?.id === "claude-fable-5" ||
+    model?.id === "claude-mythos-5"
+  );
+}
+
+/**
+ * Check if a model rejects sampling parameters (temperature, top_p, top_k).
+ * These return a 400 error on Claude Opus 4.7+, Sonnet 5, and Fable/Mythos 5.
+ * NOTE: this is NOT the same set as usesAdaptiveThinking — Opus 4.6 and
+ * Sonnet 4.6 use adaptive thinking but still accept a sampling parameter.
+ * @param {string} identifier - Model identifier
+ * @returns {boolean}
+ */
+export function rejectsSamplingParams(identifier) {
+  if (!identifier) return false;
+  // Strip +thinking suffix used by Claude models
+  const cleanId = identifier.replace(/\+thinking/i, "").trim();
+  const model = getModelByIdentifier(cleanId);
+  return (
+    model?.id === "claude-opus-4-7" ||
+    model?.id === "claude-opus-4-8" ||
+    model?.id === "claude-sonnet-5" ||
     model?.id === "claude-fable-5" ||
     model?.id === "claude-mythos-5"
   );
@@ -945,6 +1050,213 @@ export function getThinkingEffortOptions(identifier) {
     return ["low", "medium", "high", "max"];
   }
   return ["minimal", "low", "medium", "high", "max"];
+}
+
+// ==================== THINKING REQUEST SCHEMES ====================
+// Every provider/model expresses "reasoning effort" differently. These helpers
+// are the SINGLE SOURCE OF TRUTH for that mapping so the raw-API layer
+// (aiAPIsHub.js) and the LangChain layer (langraphModelsLoader.ts) can never
+// drift apart. Each call site only decides WHERE to place the resolved values
+// (top-level option, modelKwargs, thinkingConfig, …); the values themselves —
+// and the enable/disable decision — live here.
+
+// Canonical effort levels used across the app: minimal | low | medium | high | max
+
+/** Anthropic adaptive: output_config.effort accepts low|medium|high|max (no "minimal"). */
+function toAdaptiveEffort(effort) {
+  return effort === "minimal" ? "low" : effort || "low";
+}
+
+/** Anthropic legacy: thinking.budget_tokens. */
+function toBudgetTokens(effort) {
+  const map = { minimal: 1024, low: 2500, medium: 4096, high: 8000, max: 16000 };
+  return map[effort] ?? 8000;
+}
+
+/** OpenAI / xAI reasoning_effort accepts minimal|low|medium|high — map "max" to "high". */
+function toOpenAIEffort(effort) {
+  return effort === "max" ? "high" : effort || "low";
+}
+
+/** Grok-4.x reasoning_effort: low (default) | medium | high. */
+function toGrokEffort(effort) {
+  if (effort === "max" || effort === "high") return "high";
+  if (effort === "medium") return "medium";
+  return "low";
+}
+
+/** OpenRouter unified reasoning.effort: low | medium | high (no minimal/max). */
+function toOpenRouterEffort(effort) {
+  if (effort === "minimal") return "low";
+  if (effort === "max") return "high";
+  return effort || "low";
+}
+
+/** Gemini thinkingLevel: accepts low|medium|high — with per-model floors. */
+function toGeminiLevel(modelId, effort) {
+  let level = effort === "max" ? "high" : effort || "low";
+  // Gemini 3(.1) Pro reject "minimal"/"medium"; floor them to "low".
+  if (modelId === "gemini-3-pro-preview" && (effort === "minimal" || effort === "medium"))
+    level = "low";
+  else if (modelId === "gemini-3.1-pro-preview" && effort === "minimal")
+    level = "low";
+  return level;
+}
+
+/**
+ * Decide which "thinking scheme" a model uses. Falls back to id-string
+ * heuristics for dynamic/unregistered models (custom OpenRouter, Ollama, …).
+ * @param {string} identifier
+ * @returns {"anthropic-adaptive"|"anthropic-budget"|"openai-reasoning"|"deepseek-v4"|"gemini"|"grok-effort"|"grok-mini"|"grok-suffix"|"none"}
+ */
+export function getThinkingScheme(identifier) {
+  if (!identifier) return "none";
+  const cleanId = identifier.replace(/\+thinking/i, "").trim();
+
+  // A user-declared custom reasoning model wins over any inference.
+  const custom = getCustomModelThinking(cleanId);
+  if (custom) return custom.scheme;
+
+  const model = getModelByIdentifier(cleanId);
+
+  // An explicit scheme on the registry entry (e.g. auto-detected OpenRouter
+  // reasoning models) takes precedence over provider inference.
+  if (model?.thinkingScheme) return model.thinkingScheme;
+
+  if (!model) {
+    const id = cleanId.toLowerCase();
+    if (id.includes("deepseek-v4")) return "deepseek-v4";
+    if (id.includes("gpt-5") || id.includes("o3") || id.includes("o4"))
+      return "openai-reasoning";
+    if (id.includes("grok-3-mini")) return "grok-mini";
+    if (id.includes("grok")) return "grok-effort";
+    if (id.includes("gemini-3")) return "gemini";
+    return "none";
+  }
+
+  const id = model.id;
+  switch (model.provider) {
+    case "Anthropic":
+      if (!model.capabilities?.thinking) return "none";
+      return usesAdaptiveThinking(id) ? "anthropic-adaptive" : "anthropic-budget";
+    case "OpenAI":
+      return model.capabilities?.thinking ? "openai-reasoning" : "none";
+    case "DeepSeek":
+      // deepseek-reasoner reasons purely by virtue of its id (no params to send).
+      return id.includes("deepseek-v4") ? "deepseek-v4" : "none";
+    case "Google":
+      return model.capabilities?.thinking && id.includes("gemini-3")
+        ? "gemini"
+        : "none";
+    case "Grok":
+      if (model.thinkingIdSuffix) return "grok-suffix";
+      if (id.includes("grok-3-mini")) return "grok-mini";
+      return model.capabilities?.thinking ? "grok-effort" : "none";
+    default:
+      return "none";
+  }
+}
+
+/**
+ * Resolve the thinking configuration for a single request. Returns provider-
+ * logical values (NOT wrapped for any particular SDK); the caller places them
+ * into its own option container. Enable/disable honors isThinkingOnly().
+ *
+ * @param {string} identifier - Model identifier (may carry a "+thinking" suffix)
+ * @param {{enabled?: boolean, effort?: string}} opts
+ *   - enabled: the user's effective toggle. `undefined` means "no preference"
+ *     (matters only for deepseek-v4, whose API default is thinking-on).
+ *   - effort: canonical effort level (minimal|low|medium|high|max).
+ * @returns {{scheme: string, on: boolean, thinking?: object, outputConfig?: object, effort?: string, level?: string, reasoning?: object, think?: boolean}}
+ *   - thinking: object to send as the provider's `thinking` param, when applicable.
+ *   - outputConfig: Anthropic adaptive `output_config`, when applicable.
+ *   - effort: resolved reasoning_effort string (OpenAI/Grok), when applicable.
+ *   - level: resolved Gemini thinkingLevel, when applicable.
+ *   - reasoning: OpenRouter unified `reasoning` object, when applicable.
+ *   - think: Ollama boolean `think`, when applicable.
+ */
+export function resolveThinkingConfig(identifier, { enabled, effort } = {}) {
+  const scheme = getThinkingScheme(identifier);
+  const cleanId = (identifier || "").replace(/\+thinking/i, "").trim();
+  const model = getModelByIdentifier(cleanId);
+  const forced =
+    model?.thinkingOnly === true ||
+    getCustomModelThinking(cleanId)?.only === true;
+  const on = forced || enabled === true;
+
+  switch (scheme) {
+    case "anthropic-adaptive":
+      // Tri-state: explicit-off → {type:"disabled"}; on → adaptive; no
+      // preference (undefined) → omit so the API default (adaptive on) applies.
+      if (on)
+        return {
+          scheme,
+          on: true,
+          thinking: { type: "adaptive" },
+          outputConfig: { effort: toAdaptiveEffort(effort) },
+        };
+      if (enabled === false)
+        return { scheme, on: false, thinking: { type: "disabled" } };
+      return { scheme, on: undefined };
+
+    case "anthropic-budget":
+      return on
+        ? {
+            scheme,
+            on: true,
+            thinking: { type: "enabled", budget_tokens: toBudgetTokens(effort) },
+          }
+        : { scheme, on: false }; // omit thinking → off (legacy default)
+
+    case "openai-reasoning":
+      return on
+        ? { scheme, on: true, effort: toOpenAIEffort(effort) }
+        : { scheme, on: false };
+
+    case "deepseek-v4":
+      // Tri-state: undefined → omit (API default is thinking-on).
+      if (enabled === false)
+        return { scheme, on: false, thinking: { type: "disabled" } };
+      if (enabled === true)
+        return {
+          scheme,
+          on: true,
+          thinking: { type: "enabled", effort: effort || "low" },
+        };
+      return { scheme, on: undefined };
+
+    case "gemini":
+      return on
+        ? { scheme, on: true, level: toGeminiLevel(cleanId, effort) }
+        : { scheme, on: false };
+
+    case "grok-effort":
+      return { scheme, on, effort: on ? toGrokEffort(effort) : "none" };
+
+    case "grok-mini":
+      return { scheme, on, effort: effort === "high" ? "high" : "low" };
+
+    case "openrouter":
+      // OpenRouter unified `reasoning` object. Explicit off disables it.
+      if (on)
+        return {
+          scheme,
+          on: true,
+          reasoning: { effort: toOpenRouterEffort(effort) },
+        };
+      if (enabled === false)
+        return { scheme, on: false, reasoning: { enabled: false } };
+      return { scheme, on: false };
+
+    case "ollama":
+      // Ollama uses a top-level boolean `think`. No effort levels.
+      if (on) return { scheme, on: true, think: true };
+      if (enabled === false) return { scheme, on: false, think: false };
+      return { scheme, on: false };
+
+    default:
+      return { scheme: "none", on };
+  }
 }
 
 /**
@@ -1188,6 +1500,10 @@ export function registerOpenRouterModels(modelsInfo) {
   for (const model of modelsInfo) {
     const key = `openRouter/${model.id}`;
     if (!MODEL_REGISTRY[key]) {
+      // Auto-detect reasoning support from OpenRouter's supported_parameters.
+      const supportsReasoning = (model.supportedParameters || []).includes(
+        "reasoning",
+      );
       MODEL_REGISTRY[key] = {
         id: model.id,
         name: model.name,
@@ -1201,7 +1517,11 @@ export function registerOpenRouterModels(modelsInfo) {
         capabilities: {
           imageInput: model.imagePricing > 0,
           webSearch: true, // All OpenRouter models support web search via :online suffix
+          ...(supportsReasoning ? { thinking: true } : {}),
         },
+        // Reasoning is off by default (opt-in per model via the toggle/dialog),
+        // and sent through OpenRouter's unified `reasoning` param.
+        ...(supportsReasoning ? { thinkingScheme: "openrouter" } : {}),
         visibleByDefault: false,
         isDynamic: true,
         aliases: [],

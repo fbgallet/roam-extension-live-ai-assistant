@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, HTMLSelect, Tooltip } from "@blueprintjs/core";
 import { extensionStorage } from "../../..";
-import { isThinkingModel, hasThinkingDefault, getThinkingEffortOptions } from "../../../ai/modelRegistry";
+import { isThinkingModel, isThinkingOnly, getThinkingEffortOptions } from "../../../ai/modelRegistry";
 import { AppToaster } from "../../Toaster";
 
 /**
@@ -26,7 +26,9 @@ const ThinkingControls = ({
 }) => {
   // Check if the default model supports thinking
   const defaultModelSupportsThinking = isThinkingModel(defaultModel);
-  const isAlwaysOn = hasThinkingDefault(defaultModel);
+  // Only thinking-only models can't be turned off; thinkingDefault is just a
+  // starting state, so it must NOT disable the toggle here.
+  const isAlwaysOn = isThinkingOnly(defaultModel);
 
   const handleThinkingToggle = (e) => {
     e.stopPropagation();

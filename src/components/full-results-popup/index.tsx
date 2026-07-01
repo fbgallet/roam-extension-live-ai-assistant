@@ -22,6 +22,7 @@ import {
   getUnionContext,
 } from "../../ai/dataExtraction.js";
 import { convertRoamToMarkdownFormat } from "./utils/chatMessageUtils";
+import { rewriteCurrentVarsForProgrammaticExec } from "../../utils/datomicQuery";
 
 // Main component and utilities
 export {
@@ -693,76 +694,6 @@ export const chatWithQuery = async ({
     console.error("Error in chatWithQuery:", error);
     throw error;
   }
-};
-
-/**
- * Rewrites a Datomic query to replace `current/*` context variables with
- * `:in` parameters. Roam auto-binds these symbols only when a :q block is
- * rendered on a page — when executed via `roamAlphaAPI.q()` programmatically,
- * the query engine errors with "current/... cannot be resolved in this context".
- *
- * Returns the rewritten query plus the ordered list of values to pass as
- * extra arguments to `roamAlphaAPI.q()`.
- */
-const rewriteCurrentVarsForProgrammaticExec = async (
-  query: string,
-  queryBlockUid: string
-): Promise<{ query: string; args: any[] }> => {
-  const entityIdFor = (uid: string | null | undefined): number | null => {
-    if (!uid) return null;
-    const r = (window as any).roamAlphaAPI.pull("[:db/id]", [":block/uid", uid]);
-    return r?.[":db/id"] ?? null;
-  };
-
-  const resolvers: Record<string, () => Promise<any> | any> = {
-    "current/block-uid": () => queryBlockUid,
-    "current/page-uid": () => getPageUidByBlockUid(queryBlockUid) || null,
-    "current/page-title": () => {
-      const pageUid = getPageUidByBlockUid(queryBlockUid);
-      return pageUid ? getPageNameByPageUid(pageUid) ?? null : null;
-    },
-    "current/block-id": () => entityIdFor(queryBlockUid),
-    "current/page-id": () => entityIdFor(getPageUidByBlockUid(queryBlockUid)),
-    "current/main-window-block-uid": async () => (await getMainViewUid()) || null,
-    "current/main-window-page-uid": async () => (await getMainPageUid()) || null,
-    "current/main-window-page-title": async () => {
-      const uid = await getMainPageUid();
-      return uid ? getPageNameByPageUid(uid) ?? null : null;
-    },
-    "current/main-window-block-id": async () => entityIdFor(await getMainViewUid()),
-    "current/main-window-page-id": async () => entityIdFor(await getMainPageUid()),
-  };
-
-  const found = new Set<string>();
-  const varRegex = /:?\bcurrent\/[a-z][a-z-]*/g;
-  let m: RegExpExecArray | null;
-  while ((m = varRegex.exec(query)) !== null) {
-    const name = m[0].replace(/^:/, "");
-    if (name in resolvers) found.add(name);
-  }
-  if (found.size === 0) return { query, args: [] };
-
-  const orderedNames = Array.from(found);
-  const args: any[] = [];
-  for (const name of orderedNames) args.push(await resolvers[name]());
-
-  const symbolFor = (name: string) => `?__${name.replace(/\//g, "-")}`;
-
-  let rewritten = query;
-  for (const name of orderedNames) {
-    const esc = name.replace(/[\/\-]/g, (c) => "\\" + c);
-    const re = new RegExp(`:?\\b${esc}\\b`, "g");
-    rewritten = rewritten.replace(re, symbolFor(name));
-  }
-
-  const inParams = orderedNames.map(symbolFor).join(" ");
-  if (/:in\s+\$/.test(rewritten)) {
-    rewritten = rewritten.replace(/:in\s+\$/, `:in $ ${inParams}`);
-  } else {
-    rewritten = rewritten.replace(/:where\b/, `:in $ ${inParams} :where`);
-  }
-
-  return { query: rewritten, args };
 };
 
 /**

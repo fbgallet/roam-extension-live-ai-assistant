@@ -158,3 +158,17 @@
 .bp3-dark .model-card .model-name {
   color: #f5f8fa;
 }
+
+/* Per-model "think by default" switch */
+.model-thinking-default {
+  margin-top: 6px;
+}
+.model-thinking-default .thinking-default-switch {
+  margin: 0;
+  font-size: 12px;
+  color: #5c7080;
+}
+.bp5-dark .model-thinking-default .thinking-default-switch,
+.bp3-dark .model-thinking-default .thinking-default-switch {
+  color: #a7b6c2;
+}

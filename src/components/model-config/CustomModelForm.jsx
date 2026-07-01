@@ -5,6 +5,7 @@ import {
   Button,
   Intent,
   HTMLSelect,
+  Checkbox,
 } from "@blueprintjs/core";
 import axios from "axios";
 import "./CustomModelForm.css";
@@ -31,8 +32,22 @@ export const CustomModelForm = ({
   const [contextLength, setContextLength] = useState(null);
   const [inputPricing, setInputPricing] = useState("");
   const [outputPricing, setOutputPricing] = useState("");
+  const [isReasoning, setIsReasoning] = useState(false);
+  const [thinkingScheme, setThinkingScheme] = useState("openai-reasoning");
   const [isFetching, setIsFetching] = useState(false);
   const [fetchMessage, setFetchMessage] = useState(null); // { text, intent }
+
+  // Reasoning API "dialect" options — must match getThinkingScheme() ids.
+  const THINKING_SCHEMES = [
+    { value: "openai-reasoning", label: "OpenAI-style (reasoning effort)" },
+    { value: "anthropic-adaptive", label: "Anthropic (adaptive + effort)" },
+    { value: "anthropic-budget", label: "Anthropic legacy (thinking budget)" },
+    { value: "deepseek-v4", label: "DeepSeek (enable/disable + effort)" },
+    { value: "gemini", label: "Gemini (thinking level)" },
+    { value: "grok-effort", label: "Grok (reasoning effort)" },
+    { value: "openrouter", label: "OpenRouter (unified reasoning)" },
+    { value: "ollama", label: "Ollama (think on/off)" },
+  ];
 
   // Check for duplicate IDs across ALL providers
   const isDuplicate = useMemo(() => {
@@ -63,6 +78,11 @@ export const CustomModelForm = ({
               output: parseFloat(outputPricing) || 0,
             }
           : null,
+      // Reasoning models: store capability + which effort dialect they use so
+      // the thinking toggle, per-model default and effort mapping all work.
+      ...(isReasoning
+        ? { capabilities: { thinking: true }, thinkingScheme }
+        : {}),
     };
 
     onAdd(selectedProvider, newModel);
@@ -73,6 +93,8 @@ export const CustomModelForm = ({
     setContextLength(null);
     setInputPricing("");
     setOutputPricing("");
+    setIsReasoning(false);
+    setThinkingScheme("openai-reasoning");
     setFetchMessage(null);
   };
 
@@ -205,6 +227,33 @@ export const CustomModelForm = ({
             step="0.01"
             small
           />
+        </div>
+      </div>
+
+      {/* Row 4: Reasoning / thinking */}
+      <div className="form-row">
+        <div className="form-field">
+          <Checkbox
+            checked={isReasoning}
+            label="Reasoning model (supports thinking mode)"
+            onChange={(e) => setIsReasoning(e.target.checked)}
+            style={{ marginBottom: isReasoning ? 6 : 0 }}
+          />
+          {isReasoning && (
+            <>
+              <label>
+                Thinking API style{" "}
+                <span className="optional">(how effort is sent)</span>
+              </label>
+              <HTMLSelect
+                value={thinkingScheme}
+                onChange={(e) => setThinkingScheme(e.target.value)}
+                options={THINKING_SCHEMES}
+                fill
+                small
+              />
+            </>
+          )}
         </div>
       </div>
 

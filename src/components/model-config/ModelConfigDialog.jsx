@@ -48,13 +48,22 @@ import {
   supportsCustomEndpoint,
   isCustomModel,
   isImageGenModel,
+  resolveThinkingDefault,
+  setThinkingDefaultOption,
 } from "../../utils/modelConfigHelpers";
 import {
   getAvailableModels,
   transcriptionModels,
   getTranscriptionModelLabel,
 } from "../../ai/modelsInfo";
-import { getModelsByProvider, MODEL_REGISTRY, unregisterOpenRouterModel } from "../../ai/modelRegistry";
+import {
+  getModelsByProvider,
+  MODEL_REGISTRY,
+  unregisterOpenRouterModel,
+  isThinkingModel,
+  isThinkingOnly,
+  registerCustomModelThinking,
+} from "../../ai/modelRegistry";
 import "./ModelConfigDialog.css";
 
 /**
@@ -298,6 +307,13 @@ export const ModelConfigDialog = ({
     });
   };
 
+  const handleToggleThinkingDefault = (modelId, checked) => {
+    setWorkingConfig({
+      ...workingConfig,
+      modelOptions: setThinkingDefaultOption(workingConfig, modelId, checked),
+    });
+  };
+
   const handleDragStart = (e, modelId, provider) => {
     const isImageGen = isImageGenModel(modelId);
     setDraggedModel({ id: modelId, provider, isImageGen });
@@ -396,6 +412,11 @@ export const ModelConfigDialog = ({
     const providerModels = [...(customModels[storageProvider] || [])];
     providerModels.push(model);
     customModels[storageProvider] = providerModels;
+
+    // Make the model's thinking capability effective immediately (before the
+    // dialog closes and updateAvailableModels() does a full refresh), so the
+    // "Think by default" switch and reasoning badge appear right away.
+    registerCustomModelThinking([model]);
 
     setWorkingConfig({
       ...workingConfig,
@@ -864,6 +885,10 @@ export const ModelConfigDialog = ({
                 contextLength: metadata.contextLength,
                 pricing: metadata.pricing,
               };
+              // Only thinking-capable models that can actually be toggled get
+              // a user-settable default (thinking-only models are always on).
+              const canConfigureThinking =
+                isThinkingModel(model.id) && !isThinkingOnly(model.id);
 
               return (
                 <ModelCard
@@ -875,6 +900,12 @@ export const ModelConfigDialog = ({
                   isNew={isModelNew(model.id)}
                   isCustom={isCustom}
                   isRemote={isRemoteModel(model.id)}
+                  showThinkingDefault={canConfigureThinking}
+                  thinkingDefaultOn={resolveThinkingDefault(
+                    workingConfig,
+                    model.id,
+                  )}
+                  onToggleThinkingDefault={handleToggleThinkingDefault}
                   onToggleVisibility={handleToggleVisibility}
                   onToggleFavorite={handleToggleFavorite}
                   onDragStart={(e, modelId) =>

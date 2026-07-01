@@ -2,11 +2,17 @@
 
 **Updates**
 
+- New image generation model: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image) — a faster, cheaper variant supporting all aspect ratios (1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9) at 1K resolution.
 - Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models.
 - The transcription model can now also be chosen from the Models customization dialog (new "Transcription" selector), alongside the existing setting in the extension settings.
+- New per-model "🧠 Think by default" switch in the Models customization dialog: choose whether thinking/reasoning mode starts enabled for each model (you can still toggle it per conversation from the chat or context menu).
+- Custom models can now be flagged as reasoning models when added (new "Reasoning model" option in the custom model form, with a choice of thinking API style) — thinking toggle, per-model default and effort control then work for them too. OpenRouter reasoning models are auto-detected, and Ollama local reasoning models (think on/off) are supported.
+- The "Reasoning effort" setting now offers a "max" level (in addition to minimal/low/medium/high); the in-chat thinking picker shows the exact levels supported by the selected model.
 
 **Fixed**
 
+- Thinking mode can now actually be disabled for reasoning models that support it (Claude Sonnet 5, Opus 4.6/4.7/4.8…). The toggle was previously hidden or forced on. Models that can only run with thinking (Claude Fable 5, OpenAI o-series, Gemini 3, DeepSeek Reasoner) correctly stay always-on.
+- Reasoning effort is now mapped consistently per provider and model, fixing cases where an unsupported level (e.g. "max" or "minimal") could be sent to a model that rejects it.
 - Pausing and resuming a recording multiple times no longer drops the audio recorded after the last pause.
 - OpenAI Whisper (whisper-1) no longer occasionally replaces the transcription with a repeated stray sentence: instruction text is no longer sent in the Whisper prompt (it was treated as content to echo on low-confidence audio).
 - Silent or non-speech recordings are now detected and skipped with a clear warning, instead of producing hallucinated text; for Whisper models, hallucinated/non-speech segments are also filtered out from the result.
