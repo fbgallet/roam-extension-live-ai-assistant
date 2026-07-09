@@ -18,17 +18,11 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.30 (June 10th, 2026)
+### 🆕 New in v.32 (July, 2026)
 
-- **New models support**: Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
-- Chat conversation is now saved locally and restored after a browser refresh
-- In Context menu, new pin button for the context selection
-- Roam queries and :q queries nested in a Style: their results are automatically added to the context
-
-### 🆕 New in v.30 (April 27th, 2026)
-
-- **Debate mode** in LLM Council: 2–6 participants take turns in a live. Configure each with a model, a role and optionally a name (the model will automatically embody named thinkers or fictional characters). Presets included. [See documentation](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/llm-council.md#debate)
-- **New models support**: GPT 5.5, Opus 4.7, DeepSeek V4, GPT Image 2.
+- **New models support**: OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5, Nano Banana 2 Lite
+- Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models.
+- More reliable voice transcription
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

@@ -83,22 +83,23 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "30";
+export const WHATS_NEW_VERSION = "32";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.31 (June 10th, 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.32 (July 2026) 🎉
+
+#### **Better voice transcription**
+- Now works with Gemini (Google) and Grok (xAI) too — not just OpenAI Whisper
+- Choose your transcription model right from the Models menu
+- More reliable: silent or unclear recordings no longer turn into made-up text, and pausing/resuming a recording no longer loses audio
+
+#### **More control over "thinking" models**
+- Turn reasoning on or off per conversation — and set your preferred default for each model
+- Works with more models now, including your own custom, OpenRouter and Ollama models
+- New "max" reasoning effort when you want the deepest thinking
 
 #### **New models**
-- Claude Fable 5, Opus 4.8, Gemini 3.5 Flash, Grok 4.3
-- Image generation: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image) — faster & cheaper, all aspect ratios at 1K
-
-#### Chat agent updates
-- Conversation still available after browser refresh
-- Better long chat support (better summarization after 25 echanges & always keep last 6 messages verbatim)
-
-#### Inline Context Menu
-- New pin button for the context selection
-- Roam tables shared as context (chat or inline) are now always read in full, all rows captured regardless of depth/access settings
-- Roam queries and :q queries nested in a Style are now executed automatically
+- OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5
+- New image model: Nano Banana 2 Lite — faster, cheaper, and supports every aspect ratio
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 

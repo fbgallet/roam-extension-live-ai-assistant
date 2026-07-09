@@ -54,13 +54,14 @@ export const ThinkingToggle = ({
     low: isAdaptive ? "Low" : "Low (default)",
     medium: "Medium",
     high: isAdaptive ? "High (default)" : "High",
+    xhigh: "Extra high",
     max: "Max",
   };
 
   const effortOptions = effortLevels.map((level) => ({
     value: level,
     label: effortLabels[level] || level,
-    icon: level === "max" ? "flame" : level === "high" ? "double-chevron-up" : level === "medium" ? "double-chevron-up" : level === "low" ? "tick" : "small-tick",
+    icon: level === "max" ? "flame" : level === "xhigh" ? "chevron-up" : level === "high" ? "double-chevron-up" : level === "medium" ? "double-chevron-up" : level === "low" ? "tick" : "small-tick",
   }));
 
   // Thinking-only models can't be disabled: show an indicator but no toggle.

@@ -688,11 +688,12 @@ function getPanelConfig() {
         description:
           "Default reasoning effort for thinking models (higher = more tokens & time). " +
           "Not every level is valid for every model — it is mapped per provider " +
-          '("minimal" falls back to "low" on adaptive/Gemini/Grok models). The ' +
+          '("minimal" falls back to "low" on adaptive/Gemini/Grok models; "xhigh" ' +
+          'is only distinct on GPT-5.6 and folds to "high" elsewhere). The ' +
           "in-chat thinking picker shows the exact levels for the selected model:",
         action: {
           type: "select",
-          items: ["minimal", "low", "medium", "high", "max"],
+          items: ["minimal", "low", "medium", "high", "xhigh", "max"],
           onChange: (evt) => {
             reasoningEffort = evt;
           },

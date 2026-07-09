@@ -1,7 +1,8 @@
-### v.32 (upcoming, 2026) Voice transcription update
+### v.32 (upcoming, 2026) More reliable Voice transcription
 
 **Updates**
 
+- New models support: OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5
 - New image generation model: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image) — a faster, cheaper variant supporting all aspect ratios (1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9) at 1K resolution.
 - Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models.
 - The transcription model can now also be chosen from the Models customization dialog (new "Transcription" selector), alongside the existing setting in the extension settings.

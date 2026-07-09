@@ -27,6 +27,58 @@
 
 export const MODEL_REGISTRY = {
   // ==================== OpenAI Models ====================
+  "gpt-5.6-sol": {
+    id: "gpt-5.6-sol",
+    name: "GPT 5.6 Sol",
+    provider: "OpenAI",
+    contextLength: 1050000,
+    maxOutput: 128000,
+    pricing: { input: 5, output: 30 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    thinkingDefault: true,
+    aliases: ["GPT 5.6 Sol", "gpt-5-6-sol"],
+  },
+  "gpt-5.6-terra": {
+    id: "gpt-5.6-terra",
+    name: "GPT 5.6 Terra",
+    provider: "OpenAI",
+    contextLength: 1050000,
+    maxOutput: 128000,
+    pricing: { input: 2.5, output: 15 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    thinkingDefault: true,
+    aliases: ["GPT 5.6 Terra", "gpt-5-6-terra"],
+  },
+  "gpt-5.6-luna": {
+    id: "gpt-5.6-luna",
+    name: "GPT 5.6 Luna",
+    provider: "OpenAI",
+    contextLength: 1050000,
+    maxOutput: 128000,
+    pricing: { input: 5, output: 30 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    thinkingDefault: true,
+    aliases: ["GPT 5.6 Luna", "gpt-5-6-luna"],
+  },
+
   "gpt-5.5": {
     id: "gpt-5.5",
     name: "GPT 5.5",
@@ -57,7 +109,7 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["GPT 5.4", "gpt-5-4"],
   },
 
@@ -74,42 +126,8 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["gpt5.4-mini", "gpt-5-4-mini"],
-  },
-
-  "gpt-5.2": {
-    id: "gpt-5.2",
-    name: "GPT-5.2",
-    provider: "OpenAI",
-    contextLength: 400000,
-    maxOutput: 32000,
-    pricing: { input: 1.75, output: 14 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: ["gpt5.2", "gpt-5-2", "gpt-5.2-chat-latest"],
-  },
-
-  "gpt-5.1": {
-    id: "gpt-5.1",
-    name: "GPT-5.1",
-    provider: "OpenAI",
-    contextLength: 400000,
-    maxOutput: 32000,
-    pricing: { input: 1.25, output: 10 },
-    capabilities: {
-      thinking: false,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: ["gpt5.1", "gpt-5-1", "gpt-5.1-chat-latest"],
   },
 
   "gpt-5": {
@@ -126,23 +144,6 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: false,
     aliases: ["gpt-5-chat-latest"],
-  },
-
-  "gpt-5-mini": {
-    id: "gpt-5-mini",
-    name: "GPT-5 mini",
-    provider: "OpenAI",
-    contextLength: 400000,
-    maxOutput: 32000,
-    pricing: { input: 0.25, output: 2 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["gpt-5.1-mini"],
   },
 
   "gpt-5-nano": {
@@ -686,6 +687,22 @@ export const MODEL_REGISTRY = {
 
   // ==================== Grok Models ====================
 
+  "grok-4.5": {
+    id: "grok-4.5",
+    name: "Grok 4.5",
+    provider: "Grok",
+    contextLength: 500000,
+    pricing: { input: 2, output: 6 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    aliases: ["grok-4-5", "grok-4.5", "grok-4"],
+  },
+
   "grok-4.3": {
     id: "grok-4.3",
     name: "Grok 4.3",
@@ -699,7 +716,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     visibleByDefault: true,
-    aliases: ["grok-4-3", "grok-4.20", "grok-4", "grok-4-1-fast"],
+    aliases: ["grok-4-3"],
   },
 
   // "grok-4.20": {
@@ -780,7 +797,10 @@ export const CUSTOM_MODEL_THINKING = {}; // id -> { scheme, only, thinkingDefaul
  * later un-flag takes effect.
  * @param {Array<{id: string, capabilities?: object, thinkingScheme?: string, thinkingOnly?: boolean, thinkingDefault?: boolean}>} models
  */
-export function registerCustomModelThinking(models = [], { replace = false } = {}) {
+export function registerCustomModelThinking(
+  models = [],
+  { replace = false } = {},
+) {
   if (replace) {
     for (const k of Object.keys(CUSTOM_MODEL_THINKING)) {
       delete CUSTOM_MODEL_THINKING[k];
@@ -1049,6 +1069,10 @@ export function getThinkingEffortOptions(identifier) {
   if (usesAdaptiveThinking(identifier)) {
     return ["low", "medium", "high", "max"];
   }
+  // GPT-5.6 drops "minimal" and adds "xhigh" + a discrete "max" level.
+  if (supportsExtendedOpenAIEffort(identifier)) {
+    return ["low", "medium", "high", "xhigh", "max"];
+  }
   return ["minimal", "low", "medium", "high", "max"];
 }
 
@@ -1061,42 +1085,72 @@ export function getThinkingEffortOptions(identifier) {
 // and the enable/disable decision — live here.
 
 // Canonical effort levels used across the app: minimal | low | medium | high | max
+// Plus "xhigh" (between high and max), offered only by GPT-5.6. Because the
+// user's effort is a single global setting, every mapper below must fold
+// "xhigh" back to a value its provider actually accepts.
 
-/** Anthropic adaptive: output_config.effort accepts low|medium|high|max (no "minimal"). */
+/** Anthropic adaptive: output_config.effort accepts low|medium|high|max (no "minimal"/"xhigh"). */
 function toAdaptiveEffort(effort) {
-  return effort === "minimal" ? "low" : effort || "low";
+  if (effort === "minimal") return "low";
+  if (effort === "xhigh") return "high";
+  return effort || "low";
 }
 
 /** Anthropic legacy: thinking.budget_tokens. */
 function toBudgetTokens(effort) {
-  const map = { minimal: 1024, low: 2500, medium: 4096, high: 8000, max: 16000 };
+  const map = {
+    minimal: 1024,
+    low: 2500,
+    medium: 4096,
+    high: 8000,
+    xhigh: 12000,
+    max: 16000,
+  };
   return map[effort] ?? 8000;
 }
 
-/** OpenAI / xAI reasoning_effort accepts minimal|low|medium|high — map "max" to "high". */
-function toOpenAIEffort(effort) {
-  return effort === "max" ? "high" : effort || "low";
+/** GPT-5.6 family accepts "xhigh" and a discrete "max" reasoning_effort. */
+function supportsExtendedOpenAIEffort(identifier) {
+  const id = (identifier || "").toLowerCase();
+  return id.includes("gpt-5.6") || id.includes("gpt-5-6");
+}
+
+/**
+ * OpenAI reasoning_effort mapping. Baseline GPT-5.x / o-series accept
+ * minimal|low|medium|high, so "xhigh"/"max" fold to "high". GPT-5.6 additionally
+ * accepts "xhigh" and "max" as discrete levels (and has no "minimal" → "low").
+ */
+function toOpenAIEffort(effort, modelId) {
+  const e = effort || "low";
+  if (supportsExtendedOpenAIEffort(modelId)) {
+    return e === "minimal" ? "low" : e; // low|medium|high|xhigh|max pass through
+  }
+  return e === "xhigh" || e === "max" ? "high" : e;
 }
 
 /** Grok-4.x reasoning_effort: low (default) | medium | high. */
 function toGrokEffort(effort) {
-  if (effort === "max" || effort === "high") return "high";
+  if (effort === "max" || effort === "xhigh" || effort === "high")
+    return "high";
   if (effort === "medium") return "medium";
   return "low";
 }
 
-/** OpenRouter unified reasoning.effort: low | medium | high (no minimal/max). */
+/** OpenRouter unified reasoning.effort: low | medium | high (no minimal/xhigh/max). */
 function toOpenRouterEffort(effort) {
   if (effort === "minimal") return "low";
-  if (effort === "max") return "high";
+  if (effort === "max" || effort === "xhigh") return "high";
   return effort || "low";
 }
 
 /** Gemini thinkingLevel: accepts low|medium|high — with per-model floors. */
 function toGeminiLevel(modelId, effort) {
-  let level = effort === "max" ? "high" : effort || "low";
+  let level = effort === "max" || effort === "xhigh" ? "high" : effort || "low";
   // Gemini 3(.1) Pro reject "minimal"/"medium"; floor them to "low".
-  if (modelId === "gemini-3-pro-preview" && (effort === "minimal" || effort === "medium"))
+  if (
+    modelId === "gemini-3-pro-preview" &&
+    (effort === "minimal" || effort === "medium")
+  )
     level = "low";
   else if (modelId === "gemini-3.1-pro-preview" && effort === "minimal")
     level = "low";
@@ -1138,7 +1192,9 @@ export function getThinkingScheme(identifier) {
   switch (model.provider) {
     case "Anthropic":
       if (!model.capabilities?.thinking) return "none";
-      return usesAdaptiveThinking(id) ? "anthropic-adaptive" : "anthropic-budget";
+      return usesAdaptiveThinking(id)
+        ? "anthropic-adaptive"
+        : "anthropic-budget";
     case "OpenAI":
       return model.capabilities?.thinking ? "openai-reasoning" : "none";
     case "DeepSeek":
@@ -1166,7 +1222,7 @@ export function getThinkingScheme(identifier) {
  * @param {{enabled?: boolean, effort?: string}} opts
  *   - enabled: the user's effective toggle. `undefined` means "no preference"
  *     (matters only for deepseek-v4, whose API default is thinking-on).
- *   - effort: canonical effort level (minimal|low|medium|high|max).
+ *   - effort: canonical effort level (minimal|low|medium|high|xhigh|max).
  * @returns {{scheme: string, on: boolean, thinking?: object, outputConfig?: object, effort?: string, level?: string, reasoning?: object, think?: boolean}}
  *   - thinking: object to send as the provider's `thinking` param, when applicable.
  *   - outputConfig: Anthropic adaptive `output_config`, when applicable.
@@ -1204,13 +1260,16 @@ export function resolveThinkingConfig(identifier, { enabled, effort } = {}) {
         ? {
             scheme,
             on: true,
-            thinking: { type: "enabled", budget_tokens: toBudgetTokens(effort) },
+            thinking: {
+              type: "enabled",
+              budget_tokens: toBudgetTokens(effort),
+            },
           }
         : { scheme, on: false }; // omit thinking → off (legacy default)
 
     case "openai-reasoning":
       return on
-        ? { scheme, on: true, effort: toOpenAIEffort(effort) }
+        ? { scheme, on: true, effort: toOpenAIEffort(effort, cleanId) }
         : { scheme, on: false };
 
     case "deepseek-v4":
