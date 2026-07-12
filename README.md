@@ -18,11 +18,15 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.32 (July, 2026)
+### 🆕 New in v.33 (July, 2026)
+
+- The chat now **remembers your choices**: thinking on/off (per model, for the session) and Chat/Agent mode (across sessions).
+- Fixed **reasoning effortt** in chat Panel, for OpenAI (gpt-5.6-x) and Claude thinking models (Opus 4.x, Sonnet 5). GPT 5.6 adds "xhigh"/"max" effort, and disabling thinking keeps tools working.
+
+### 🆕 New in v.32 (July 9th, 2026)
 
 - **New models support**: OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5, Nano Banana 2 Lite
-- Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models.
-- More reliable voice transcription
+- Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models; more reliable transcription.
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

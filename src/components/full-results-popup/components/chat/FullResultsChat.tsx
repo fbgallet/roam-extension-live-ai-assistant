@@ -137,6 +137,13 @@ interface FullResultsChatProps {
 
 // Utility functions moved to ./utils/chatMessageUtils.ts
 
+// Session-scoped (in-memory) thinking on/off overrides, keyed by model id.
+// Remembers the user's per-model thinking choice across chat-panel close/reopen
+// within a Roam session, WITHOUT making it a permanent setting (resets on
+// reload). Reasoning-effort persistence is handled separately by ThinkingToggle
+// via extensionStorage (global), and chat/agent mode persists in extensionStorage.
+const sessionThinkingByModel: Record<string, boolean> = {};
+
 export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   isOpen,
   selectedResults,
@@ -1347,12 +1354,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     }
   };
   const [chatMode, setChatMode] = useState<ChatMode>(() => {
-    // Initialize agent mode if there are enabled tools (persisted or forced)
-    const storedTools = extensionStorage.get("chatEnabledTools");
-    const hasStoredTools = storedTools && storedTools.length > 0;
+    // Forced tools (e.g. from a SmartBlock invocation) always start in agent mode.
     const hasForcedInitialTools =
       initialEnabledTools && initialEnabledTools.size > 0;
-    return hasStoredTools || hasForcedInitialTools ? "agent" : "simple";
+    if (hasForcedInitialTools) return "agent";
+    // User's explicit chat/agent choice, persisted beyond the session.
+    const storedMode = extensionStorage.get("chatMode");
+    if (storedMode === "simple" || storedMode === "agent") return storedMode;
+    // Back-compat fallback: infer from previously stored tools.
+    const storedTools = extensionStorage.get("chatEnabledTools");
+    return storedTools && storedTools.length > 0 ? "agent" : "simple";
   });
   // Council config state
   const [councilConfig, setCouncilConfig] = useState<CouncilConfig>(() => {
@@ -1426,10 +1437,19 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       128000,
   );
 
-  // Thinking mode state (session-based, resets on model change)
+  // Thinking mode state — session-persistent per model (survives panel
+  // close/reopen), falling back to the model's (user-overridable) default.
   const [thinkingEnabled, setThinkingEnabled] = useState<boolean>(() => {
-    return getModelThinkingDefault(selectedModel);
+    const stored = sessionThinkingByModel[selectedModel];
+    return stored !== undefined ? stored : getModelThinkingDefault(selectedModel);
   });
+
+  // User-initiated thinking toggle: remember it for this model for the rest of
+  // the session so it survives closing/reopening the chat panel.
+  const handleThinkingChange = (enabled: boolean) => {
+    sessionThinkingByModel[selectedModel] = enabled;
+    setThinkingEnabled(enabled);
+  };
 
   // Advanced options (per-session, reset on new chat)
   const [advancedOptions, setAdvancedOptions] = useState<AdvancedOptionsState>(
@@ -1468,6 +1488,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       extensionStorage.set("chatEnabledTools", Array.from(enabledTools));
     }
   }, [enabledTools]);
+
+  // Persist the chat/agent mode across sessions. Skip when forced tools drive
+  // the mode (don't overwrite the user's own preference), and don't persist the
+  // transient "council" mode so the panel never auto-reopens into it.
+  useEffect(() => {
+    if (!hasForcedTools.current && chatMode !== "council") {
+      extensionStorage.set("chatMode", chatMode);
+    }
+  }, [chatMode]);
 
   // Handler to toggle individual tool
   const handleToggleTool = (toolName: string) => {
@@ -1537,8 +1566,14 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setModelTokensLimit(
       modelAccordingToProvider(selectedModel).tokensLimit || 32000,
     );
-    // Reset thinking state based on new model's (possibly user-overridden) default
-    setThinkingEnabled(getModelThinkingDefault(selectedModel));
+    // Restore the session choice for this model if the user set one; otherwise
+    // fall back to the model's (possibly user-overridden) default.
+    const storedThinking = sessionThinkingByModel[selectedModel];
+    setThinkingEnabled(
+      storedThinking !== undefined
+        ? storedThinking
+        : getModelThinkingDefault(selectedModel),
+    );
   }, [selectedModel]);
 
   // Persist chat-specific state whenever it changes
@@ -4358,7 +4393,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         isPinnedStyle={isPinnedStyle}
         onPinnedStyleChange={handlePinnedStyleChange}
         thinkingEnabled={thinkingEnabled}
-        onThinkingChange={setThinkingEnabled}
+        onThinkingChange={handleThinkingChange}
         imageEditionMode={chatAgentData?.imageEditionMode ?? false}
         hasGeneratedImage={!!chatAgentData?.lastGeneratedImageUrl}
         onExitImageEdition={() => {

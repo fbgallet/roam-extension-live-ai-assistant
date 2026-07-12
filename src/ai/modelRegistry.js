@@ -1109,9 +1109,17 @@ function toBudgetTokens(effort) {
   return map[effort] ?? 8000;
 }
 
-/** GPT-5.6 family accepts "xhigh" and a discrete "max" reasoning_effort. */
+/**
+ * GPT-5.6 family accepts "xhigh" and a discrete "max" reasoning_effort.
+ * Accepts any identifier form — id, registry key, display name ("GPT 5.6 Terra")
+ * or alias — by resolving to the canonical model id first, then falling back to
+ * a raw-string check for dynamic/unregistered ids.
+ */
 function supportsExtendedOpenAIEffort(identifier) {
-  const id = (identifier || "").toLowerCase();
+  if (!identifier) return false;
+  const cleanId = identifier.replace(/\+thinking/i, "").trim();
+  const model = getModelByIdentifier(cleanId);
+  const id = (model?.id || cleanId).toLowerCase();
   return id.includes("gpt-5.6") || id.includes("gpt-5-6");
 }
 
@@ -1268,9 +1276,16 @@ export function resolveThinkingConfig(identifier, { enabled, effort } = {}) {
         : { scheme, on: false }; // omit thinking → off (legacy default)
 
     case "openai-reasoning":
-      return on
-        ? { scheme, on: true, effort: toOpenAIEffort(effort, cleanId) }
-        : { scheme, on: false };
+      if (on)
+        return { scheme, on: true, effort: toOpenAIEffort(effort, cleanId) };
+      // gpt-5.6 accepts an explicit "none" that disables reasoning while staying
+      // compatible with function tools on /chat/completions (older OpenAI
+      // reasoning models don't take "none", so omit the param for them). Sending
+      // "none" also avoids the API applying its default reasoning effort, which
+      // would otherwise conflict with bound tools.
+      if (supportsExtendedOpenAIEffort(cleanId))
+        return { scheme, on: false, effort: "none" };
+      return { scheme, on: false };
 
     case "deepseek-v4":
       // Tri-state: undefined → omit (API default is thinking-on).

@@ -132,10 +132,21 @@ export function modelViaLanggraph(
         reasoning_effort: thinkingCfg.effort,
       };
     } else if (thinkingCfg.scheme === "openai-reasoning" && thinkingCfg.effort) {
-      // GPT-5 / o-series reasoning effort.
-      options["reasoning"] = { effort: thinkingCfg.effort, summary: "auto" };
+      // GPT-5 / o-series reasoning effort. NOTE: LangChain 0.4.x only honors the
+      // string `reasoningEffort` field — the `reasoning` object we used to pass
+      // was silently dropped, so effort never actually applied. As a STRING it
+      // is sent as `reasoning_effort` on /chat/completions.
+      //
+      // gpt-5.6 rejects `reasoning_effort` + function tools on /chat/completions
+      // (400) for any REAL effort level, so for real OpenAI we switch to the
+      // Responses API, which accepts reasoning + tools together. The exception is
+      // the explicit "none" (thinking disabled): that IS allowed alongside tools
+      // on chat completions, so we keep the cheaper chat-completions path there.
+      // groq/custom OpenAI-compatible endpoints stay on chat completions.
+      options["reasoningEffort"] = thinkingCfg.effort;
+      if (llmInfos.provider === "OpenAI" && thinkingCfg.effort !== "none")
+        options["useResponsesApi"] = true;
     }
-    // if (llmInfos.provider === "OpenAI") options["useResponsesApi"] = true;
     // console.log("options :>> ", options);
     llm = new ChatOpenAI({
       model: llmInfos.id,
@@ -193,15 +204,22 @@ export function modelViaLanggraph(
       effort: reasoningEffort,
     });
     if (anthropicThinking.thinking) options.thinking = anthropicThinking.thinking;
+
+    // `output_config` (adaptive-thinking effort for Opus 4.6+, Sonnet 5,
+    // Fable/Mythos 5) is a newer Anthropic param that ChatAnthropic 0.3.x does
+    // NOT expose as a top-level constructor field — passed there it is silently
+    // dropped, so the chosen effort never applies (adaptive models then run at
+    // the API default effort). `invocationKwargs` IS merged into the request
+    // body, so we forward it through there instead. Legacy budget thinking is
+    // unaffected (its effort travels inside the `thinking` object).
+    const anthropicInvocationKwargs: any = { top_p: undefined };
     if (anthropicThinking.outputConfig)
-      options["output_config"] = anthropicThinking.outputConfig;
+      anthropicInvocationKwargs.output_config = anthropicThinking.outputConfig;
 
     llm = new ChatAnthropic({
       model: llmInfos.id,
       ...options,
-      invocationKwargs: {
-        top_p: undefined,
-      },
+      invocationKwargs: anthropicInvocationKwargs,
       clientOptions: {
         baseURL: llmInfos.library.baseURL,
         dangerouslyAllowBrowser: true,

@@ -612,6 +612,13 @@ const assistant = async (state: typeof ChatAgentState.State) => {
   let streamingContent = "";
   const streamCallback = state.streamingCallback;
 
+  // Thinking attestation: prove reasoning actually ran + how much it cost.
+  // Claude streams `type:"thinking"` blocks (tokens folded into output_tokens);
+  // OpenAI reports a discrete reasoning-token count in usage_metadata.
+  let sawThinkingBlock = false;
+  let thinkingChars = 0;
+  let reasoningTokenCount = 0;
+
   // Workaround: Disable streaming for Gemini models due to tool call parsing issues
   const isGeminiModel = state.model.id.toLowerCase().includes("gemini");
   const shouldStream =
@@ -659,6 +666,9 @@ const assistant = async (state: typeof ChatAgentState.State) => {
         if (chunk.usage_metadata.output_tokens) {
           turnTokensUsage.output_tokens += chunk.usage_metadata.output_tokens;
         }
+        // OpenAI/o-series/gpt-5 report reasoning tokens discretely here.
+        const rt = (chunk.usage_metadata as any).output_token_details?.reasoning;
+        if (rt) reasoningTokenCount += rt;
       }
 
       // Stream content to callback as it arrives
@@ -679,6 +689,11 @@ const assistant = async (state: typeof ChatAgentState.State) => {
               } else if (item?.type === "text" && item?.text) {
                 // Handle Anthropic's {type: "text", text: "..."} format
                 return item.text;
+              } else if (item?.type === "thinking" || item?.type === "reasoning") {
+                // Claude extended-thinking / reasoning blocks — attestation only,
+                // not surfaced to the user here.
+                sawThinkingBlock = true;
+                thinkingChars += (item.thinking || item.reasoning || "").length;
               }
               return "";
             })
@@ -690,6 +705,47 @@ const assistant = async (state: typeof ChatAgentState.State) => {
           streamCallback(textContent);
         }
       }
+    }
+
+    // Thinking attestation log — replaces the "Used tokens" log that is disabled
+    // for thinking models. Proves reasoning ran and how many tokens it consumed:
+    //  - Claude: thinkingBlocks=true + thinkingChars>0 (tokens are inside output_tokens)
+    //  - OpenAI: reasoningTokens>0 (discrete count)
+    // If both are falsy while thinking was requested, thinking did NOT run.
+    if (state.model.thinking) {
+      // Measure from the accumulated message: streaming per-chunk `.thinking`
+      // deltas are unreliable, but the concatenated `gathered.content` holds the
+      // full thinking block(s). Handle string or nested { text } shapes.
+      const gArr: any[] = Array.isArray(gathered?.content)
+        ? (gathered!.content as any[])
+        : [];
+      const gThinking = gArr.filter(
+        (b: any) => b?.type === "thinking" || b?.type === "reasoning",
+      );
+      const gThinkingText = gThinking
+        .map((b: any) => {
+          const t = b.thinking ?? b.reasoning;
+          return typeof t === "string" ? t : (t?.text ?? "");
+        })
+        .join("");
+      const reasoningTokens =
+        reasoningTokenCount ||
+        (gathered?.usage_metadata as any)?.output_token_details?.reasoning ||
+        0;
+      console.log("🧠 [thinking attestation]", {
+        provider: state.model.provider,
+        model: state.model.id,
+        thinkingRequested: state.model.thinking,
+        claudeThinkingBlocks: sawThinkingBlock || gThinking.length > 0,
+        thinkingChars: gThinkingText.length || thinkingChars,
+        thinkingPreview: gThinkingText.slice(0, 120),
+        reasoningTokens,
+        output_tokens: gathered?.usage_metadata?.output_tokens,
+        // Diagnostic: if we detected a block but found no text, dump its shape.
+        rawThinkingSample:
+          gThinkingText.length === 0 && gThinking.length ? gThinking[0] : undefined,
+        active: sawThinkingBlock || gThinking.length > 0 || reasoningTokens > 0,
+      });
     }
 
     // Check for tool calls and notify via callback
@@ -766,6 +822,30 @@ const assistant = async (state: typeof ChatAgentState.State) => {
       if (response.usage_metadata.output_tokens) {
         turnTokensUsage.output_tokens += response.usage_metadata.output_tokens;
       }
+    }
+
+    // Thinking attestation log (non-streaming path) — see streaming path above.
+    if (state.model.thinking) {
+      const contentArr = Array.isArray(response.content) ? response.content : [];
+      const thinkingBlocks = contentArr.filter(
+        (b: any) => b?.type === "thinking" || b?.type === "reasoning",
+      );
+      const nsThinkingChars = thinkingBlocks.reduce(
+        (n: number, b: any) => n + (b.thinking || b.reasoning || "").length,
+        0,
+      );
+      const nsReasoningTokens =
+        (response.usage_metadata as any)?.output_token_details?.reasoning || 0;
+      console.log("🧠 [thinking attestation]", {
+        provider: state.model.provider,
+        model: state.model.id,
+        thinkingRequested: state.model.thinking,
+        claudeThinkingBlocks: thinkingBlocks.length > 0,
+        thinkingChars: nsThinkingChars,
+        reasoningTokens: nsReasoningTokens,
+        output_tokens: response.usage_metadata?.output_tokens,
+        active: thinkingBlocks.length > 0 || nsReasoningTokens > 0,
+      });
     }
 
     // Check if LLM requested fresh audio transcription (non-streaming path)

@@ -83,9 +83,14 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "32";
+export const WHATS_NEW_VERSION = "33";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.32 (July 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v32 & v.33 (July 2026) 🎉
+
+#### **Reasoning effort that finally works**
+- Effort level now truly applies in chat — for OpenAI (gpt-5.x/o-series) and Claude thinking models (Opus 4.x, Sonnet 5)
+- GPT 5.6: new "xhigh" and "max" effort; turning thinking off keeps tools working
+- The chat now remembers your thinking on/off (per model) and Chat/Agent mode
 
 #### **Better voice transcription**
 - Now works with Gemini (Google) and Grok (xAI) too — not just OpenAI Whisper

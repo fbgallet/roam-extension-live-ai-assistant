@@ -1,4 +1,16 @@
-### v.32 (upcoming, 2026) More reliable Voice transcription
+### v.33 (upcoming, 2026) Reasoning effort that actually works
+
+**Updates**
+
+- GPT 5.6 models now support the full reasoning effort range, including the new "xhigh" level and a distinct "max". Disabling thinking sends an explicit "none", which keeps function tools working.
+- The chat panel now remembers your choices: thinking on/off is kept per model for the session (survives closing the panel), and your Chat/Agent mode is persisted across sessions.
+
+**Fixed**
+
+- Reasoning effort is now properly actually applied in the chat panel. LangChain was silently dropping the reasoning parameters, so the chosen effort never reached the API — both for OpenAI models (gpt-5.x, o-series) and for Claude "adaptive" thinking models (Opus 4.6/4.7/4.8, Sonnet 5, Fable/Mythos 5)..
+- GPT 5.6 models no longer fail when thinking mode is disabled.
+
+### v.32 (July 9th, 2026) More reliable Voice transcription
 
 **Updates**
 
