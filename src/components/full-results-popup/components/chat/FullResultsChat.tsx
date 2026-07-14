@@ -30,7 +30,10 @@ import {
   getDNPTitleFromDate,
   getRoamUserDisplayName,
 } from "../../../../utils/roamAPI";
-import { modelAccordingToProvider } from "../../../../ai/aiAPIsHub";
+import {
+  modelAccordingToProvider,
+  isAPIKeyNeeded,
+} from "../../../../ai/aiAPIsHub";
 import { parseAndCreateBlocks } from "../../../../utils/format";
 import { insertCompletion } from "../../../../ai/responseInsertion";
 import { AppToaster } from "../../../Toaster";
@@ -2454,6 +2457,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
    * Handle command selection from ChatCommandSuggest
    * Instantly execute the command by creating a user message and setting command context
    */
+  // Wraps model selection so the missing-API-key warning fires only when the
+  // user *actively picks* a model in the chat panel — not on mount/restore or
+  // token-limit lookups, which resolve models silently. (If a keyless model is
+  // used anyway, modelViaLanggraph throws a clear error at send time.)
+  const handleModelSelect = (model: string) => {
+    setSelectedModel(model);
+    isAPIKeyNeeded(modelAccordingToProvider(model));
+  };
+
   const handleCommandSelect = async (
     command: any,
     isFromSlashCommand: boolean = false,
@@ -4375,7 +4387,7 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         chatMode={chatMode}
         onChatModeChange={setChatMode}
         selectedModel={selectedModel}
-        onModelSelect={setSelectedModel}
+        onModelSelect={handleModelSelect}
         chatInputRef={chatInputRef}
         onCommandSelect={handleCommandSelect}
         availablePages={availablePages}

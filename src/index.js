@@ -35,6 +35,8 @@ import {
   loadRemoteModelUpdates,
   registerOpenRouterModels,
   registerCustomModelThinking,
+  getModelByIdentifier,
+  getModelsByProvider,
 } from "./ai/modelRegistry";
 import {
   migrateModelConfig,
@@ -268,22 +270,87 @@ export function updateAvailableModels() {
     return;
   }
   if (!availableModels.includes(defaultModel)) {
-    const lowDefMod = defaultModel.toLowerCase();
-    let firstOf;
-    if (lowDefMod.includes("openrouter"))
-      firstOf = availableModels.find((model) =>
-        model.toLowerCase().includes("openrouter"),
+    // Canonical availableModels string for a registry entry — mirrors how the
+    // list above is built (native providers key on display name, dynamic ones
+    // on their raw API id).
+    const toModelString = (entry) => {
+      const isDynamic = ["OpenRouter", "Groq", "Ollama"].includes(
+        entry.provider,
       );
-    else if (lowDefMod.includes("groq"))
-      firstOf = availableModels.find((model) =>
-        model.toLowerCase().includes("groq"),
+      return getPrefix(entry.provider) + (isDynamic ? entry.id : entry.name);
+    };
+
+    const savedEntry = getModelByIdentifier(defaultModel);
+
+    // A model that still exists AND whose provider has an API key is USABLE as
+    // the default even when it isn't in the visible list — the user may simply
+    // have hidden it from the quick menu (hidden ≠ unusable). In that case we
+    // never force a switch or show a notification.
+    if (savedEntry && hasApiKey(savedEntry.provider)) {
+      // If the visible list carries the same model under a drifted identifier
+      // (rename / alias / casing change between versions), quietly adopt that
+      // canonical string. Otherwise keep the (possibly hidden) default as-is.
+      const equivalent = availableModels.find(
+        (m) => getModelByIdentifier(m) === savedEntry,
       );
-    else if (lowDefMod.includes("ollama"))
-      firstOf = availableModels.find((model) =>
-        model.toLowerCase().includes("ollama"),
-      );
-    else firstOf = availableModels[0];
-    setDefaultModel(firstOf);
+      if (equivalent && equivalent !== defaultModel) {
+        console.log(
+          `Default model identifier "${defaultModel}" drifted; adopting "${equivalent}".`,
+        );
+        setDefaultModel(equivalent);
+      }
+    } else {
+      // Genuinely unavailable: the provider's API key is gone, or the model was
+      // removed from the registry. Switch to the CHEAPEST available (visible +
+      // keyed) non-image model of the same provider — not the flagship — then
+      // notify the user. Capture the old value BEFORE setDefaultModel mutates
+      // the module-level `defaultModel`, so the toast reports it correctly.
+      const previousDefault = defaultModel;
+
+      const low = (previousDefault || "").toLowerCase();
+      let provider = savedEntry?.provider;
+      if (!provider) {
+        if (low.includes("openrouter")) provider = "OpenRouter";
+        else if (low.includes("groq")) provider = "Groq";
+        else if (low.includes("ollama")) provider = "Ollama";
+        else provider = "OpenAI";
+      }
+
+      const modelCost = (m) =>
+        typeof m.pricing?.input === "number"
+          ? m.pricing.input + (m.pricing.output || 0)
+          : Number.POSITIVE_INFINITY;
+
+      // Cheapest available chat model of a provider (image-generation models are
+      // excluded so they can never become the text default).
+      const cheapestOf = (prov) => {
+        const candidates = getModelsByProvider(prov)
+          .filter((m) => !m.capabilities?.imageOutput)
+          .map((m) => ({ str: toModelString(m), cost: modelCost(m) }))
+          .filter((c) => availableModels.includes(c.str));
+        if (!candidates.length) return undefined;
+        candidates.sort((a, b) => a.cost - b.cost);
+        return candidates[0].str;
+      };
+
+      const replacement =
+        cheapestOf(provider) ||
+        getOrderedProviders()
+          .map((p) => cheapestOf(p))
+          .find(Boolean) ||
+        availableModels[0];
+
+      setDefaultModel(replacement);
+
+      if (replacement && replacement !== previousDefault) {
+        const replacementName =
+          getModelByIdentifier(replacement)?.name || replacement;
+        AppToaster.show({
+          message: `Live AI – Your default model "${previousDefault}" is no longer available (its provider API key is missing, or the model was removed). Default switched to the cheapest available model, "${replacementName}".`,
+          timeout: 12000,
+        });
+      }
+    }
   }
   extensionStorage.panel.create(getPanelConfig());
 }

@@ -202,7 +202,10 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
     llm.id = "gpt-5.1";
     llm.name = "gpt-5.1";
     llm.library = openaiLibrary;
-    isAPIKeyNeeded(llm);
+    // Resolve silently: the missing-key warning is surfaced where the user
+    // actively picks a model (chat panel) or actually runs it, not on every
+    // resolution (start-up, restore, token-limit lookups).
+    isAPIKeyNeeded(llm, true);
     return llm;
   }
 
@@ -477,7 +480,10 @@ export function modelAccordingToProvider(model, thinkingEnabled = undefined) {
     llm.thinking = finalThinkingEnabled;
   }
 
-  isAPIKeyNeeded(llm);
+  // Resolve silently: the missing-key warning is surfaced where the user
+  // actively picks a model (chat panel) or actually runs it, not on every
+  // resolution (start-up, restore, token-limit lookups).
+  isAPIKeyNeeded(llm, true);
   return llm;
 }
 
@@ -486,7 +492,7 @@ export function isAPIKeyNeeded(llm, silent = false) {
     llm.provider !== "ollama" &&
     !llm.library?.apiKey &&
     !(llm.provider === "OpenAI" && customBaseURL) &&
-    !llm.provider === "custom"
+    llm.provider !== "custom"
   ) {
     if (!silent) {
       AppToaster.show({

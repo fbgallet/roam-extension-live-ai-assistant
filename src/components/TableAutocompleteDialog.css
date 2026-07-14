@@ -1,0 +1,124 @@
+.table-autocomplete-dialog {
+  width: 560px;
+  max-width: 94vw;
+  padding-bottom: 12px;
+}
+
+.table-autocomplete-body {
+  margin: 16px 20px 20px;
+}
+
+.table-autocomplete-label {
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.table-autocomplete-textarea.bp3-input,
+.table-autocomplete-textarea.bp5-input,
+.table-autocomplete-dialog textarea {
+  min-height: 62px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+/* Options block: a quiet card that groups the run parameters. */
+.table-autocomplete-options {
+  margin-top: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid rgba(138, 155, 168, 0.25);
+  border-radius: 6px;
+  background: rgba(138, 155, 168, 0.06);
+}
+
+.table-autocomplete-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.table-autocomplete-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+}
+
+/* Style selector row inherits from the context-menu component; keep it inline & tidy. */
+.table-autocomplete-options .aicommands-style {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.table-autocomplete-context-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+/* Checkboxes: keep Blueprint's own label layout (box + text on one line) and just drop
+   the default bottom margin so rows stay compact. Do NOT apply the column-flex
+   .table-autocomplete-field class to these, or the label text detaches from the box. */
+.table-autocomplete-options .bp3-checkbox,
+.table-autocomplete-options .bp5-checkbox,
+.table-autocomplete-checkbox {
+  margin-bottom: 0;
+}
+
+.table-autocomplete-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-autocomplete-row .table-autocomplete-section-title {
+  min-width: 44px;
+}
+
+/* Per-cell spinner shown while a table cell is being (re)generated. */
+.livai-spinner-cell {
+  position: relative;
+}
+
+.livai-cell-spinner {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(138, 155, 168, 0.35);
+  border-top-color: #2d72d2;
+  border-radius: 50%;
+  animation: livai-cell-spin 0.7s linear infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+
+@keyframes livai-cell-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Reveal-highlight on cells that were just filled / updated: hold, then slow fade. */
+.livai-cell-revealed {
+  animation: livai-cell-reveal 3.4s ease-out;
+}
+
+@keyframes livai-cell-reveal {
+  0% {
+    background-color: rgba(45, 114, 210, 0.38);
+  }
+  55% {
+    background-color: rgba(45, 114, 210, 0.32);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

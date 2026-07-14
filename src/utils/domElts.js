@@ -21,10 +21,25 @@ import {
   chatWithQuery,
   chatWithDatomicQuery,
 } from "../components/full-results-popup";
+import {
+  autoCompleteTableRow,
+  autoCompleteTableColumn,
+  generateTableRows,
+  generateTableColumns,
+} from "../ai/tableCompletion";
+import { getTableModel } from "./roamTable";
+import { openTableAutocompleteDialog } from "../components/TableAutocompleteDialog";
+import ModelsMenu from "../components/ModelsMenu";
+import {
+  faBolt,
+  faLayerGroup,
+  faTableColumns,
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ModelConfigDialog from "../components/model-config/ModelConfigDialog";
 import ModelMigrationDialog from "../components/model-config/ModelMigrationDialog";
 import MCPConfigComponent from "../components/MCPConfigComponent";
-import { Dialog, Tooltip } from "@blueprintjs/core";
+import { Dialog, Tooltip, ContextMenu } from "@blueprintjs/core";
 
 export function mountComponent(
   position,
@@ -783,6 +798,7 @@ export const displayModelMigrationDialog = (
 let queryObserver = null;
 let queryObserverDebounceTimer = null;
 let datomicMenuObserver = null;
+let tableMenuObserver = null;
 
 /**
  * Extract query block UID from a query title element by traversing up to find .rm-block
@@ -949,6 +965,394 @@ function insertDatomicQueryChatMenuItem(menuElement) {
 }
 
 /**
+ * Given a Roam table row/column context menu, resolve which table, which type
+ * (row|column) and which index the menu targets. Type is derived from the menu's own
+ * items (Insert above/below = row; Insert left/right/Sort = column); the index and the
+ * table block uid come from the currently open (or active) row/column pill handle.
+ * Resolved lazily at click time so the pill's popover-open state is reliably set.
+ */
+function getTableTargetFromMenu(menuElement) {
+  const isRow = !!menuElement.querySelector(
+    ".bp3-icon-arrow-up, .bp3-icon-arrow-down"
+  );
+  const isColumn = !!menuElement.querySelector(
+    ".bp3-icon-arrow-left, .bp3-icon-arrow-right, .bp3-icon-sort"
+  );
+  const type = isRow ? "row" : isColumn ? "column" : null;
+  if (!type) return null;
+
+  const pillSelectors =
+    type === "row"
+      ? [
+          ".rm-table__row-pill-target.bp3-popover-open",
+          ".bp3-popover-open .rm-table__row-pill-target",
+          ".rm-table__row-pill.visible",
+        ]
+      : [
+          ".rm-table__col-pill-target.bp3-popover-open",
+          ".bp3-popover-open .rm-table__col-pill-target",
+          ".rm-table__col-pill.visible",
+        ];
+  let pill = null;
+  for (const selector of pillSelectors) {
+    pill = document.querySelector(selector);
+    if (pill) break;
+  }
+  if (!pill) return null;
+
+  const cell = pill.closest("td");
+  const blockElement = pill.closest(".rm-block");
+  const tableBlockUid = blockElement?.getAttribute("data-block-uid");
+  if (!cell || !tableBlockUid) return null;
+
+  const index = parseInt(
+    cell.getAttribute(type === "row" ? "data-row" : "data-col"),
+    10
+  );
+  if (Number.isNaN(index)) return null;
+
+  return { type, index, tableBlockUid };
+}
+
+/** Close any open Roam/Blueprint popover and drop the caret out of the table cell so
+ *  keystrokes go to the dialog input (not the last-focused cell). */
+function dismissTableMenuAndBlur() {
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Escape",
+      keyCode: 27,
+      which: 27,
+      bubbles: true,
+    })
+  );
+  try {
+    const active = document.activeElement;
+    if (active && typeof active.blur === "function") active.blur();
+    window.getSelection && window.getSelection()?.removeAllRanges?.();
+  } catch (error) {
+    // ignore
+  }
+}
+
+/** Resolve the current main-view uid and open the table auto-complete dialog for a target. */
+async function openTableDialog(target, mode, initialModel) {
+  dismissTableMenuAndBlur();
+
+  let pageViewUid = null;
+  try {
+    pageViewUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+  } catch (error) {
+    // ignore — the "Current page" context option will simply have nothing to include
+  }
+
+  const titles = {
+    row: "Live AI: auto-complete row",
+    column: "Live AI: auto-complete column",
+    "multi-row": "Live AI: generate rows",
+    "multi-column": "Live AI: generate columns",
+  };
+  const labels = {
+    row: "Fill the empty or [bracketed] cells of this row, guided by the column headers, an example row and your optional instructions:",
+    column:
+      "Fill the empty or [bracketed] cells of this column, guided by the header, an example value and your optional instructions:",
+    "multi-row":
+      "Generate new rows below this one, using the whole table (and any context) as a guide:",
+    "multi-column":
+      "Generate new columns (with AI-proposed headers), using the whole table (and any context) as a guide:",
+  };
+
+  openTableAutocompleteDialog({
+    mode,
+    title: titles[mode],
+    label: labels[mode],
+    initialModel,
+    pageViewUid,
+    onSubmit: async ({ instructions, style, roamContext, includeAllRows, overwrite, rowCount, model, thinkingEnabled }) => {
+      try {
+        if (mode === "row") {
+          await autoCompleteTableRow({
+            tableBlockUid: target.tableBlockUid,
+            rowIndex: target.index,
+            instructions,
+            style,
+            roamContext,
+            includeAllRows,
+            overwrite,
+            model,
+            thinkingEnabled,
+          });
+        } else if (mode === "column") {
+          await autoCompleteTableColumn({
+            tableBlockUid: target.tableBlockUid,
+            colIndex: target.index,
+            instructions,
+            style,
+            roamContext,
+            includeAllRows,
+            overwrite,
+            model,
+            thinkingEnabled,
+          });
+        } else if (mode === "multi-column") {
+          await generateTableColumns({
+            tableBlockUid: target.tableBlockUid,
+            columnCount: rowCount,
+            instructions,
+            style,
+            roamContext,
+            model,
+            thinkingEnabled,
+          });
+        } else {
+          await generateTableRows({
+            tableBlockUid: target.tableBlockUid,
+            rowIndex: target.index,
+            rowCount,
+            instructions,
+            style,
+            roamContext,
+            model,
+            thinkingEnabled,
+          });
+        }
+      } catch (error) {
+        console.error("Live AI table auto-complete error:", error);
+        AppToaster.show({
+          message: `Live AI: table auto-complete failed: ${error.message}`,
+          intent: "danger",
+          timeout: 8000,
+        });
+      }
+    },
+  });
+}
+
+const noTableTargetToast = () =>
+  AppToaster.show({
+    message:
+      "Live AI: couldn't identify the table row/column. Right-click the row or column handle and try again.",
+    intent: "warning",
+    timeout: 6000,
+  });
+
+/**
+ * Build one bp3 menu-item <a> node (faBolt icon on the left). Left-click runs with the
+ * current default model; right-click opens ModelsMenu at the cursor to pick a model for
+ * this run. The bp3-popover-dismiss class lets Roam close its own menu on click.
+ */
+function buildTableMenuItemNode({ menuElement, mode, labelText, icon }) {
+  const getDefaultModel = () => extensionStorage.get("defaultModel") || undefined;
+
+  return (
+    <a
+      className="bp3-menu-item bp3-popover-dismiss"
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = getTableTargetFromMenu(menuElement);
+        if (!target) return noTableTargetToast();
+        await openTableDialog(target, mode, getDefaultModel());
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = getTableTargetFromMenu(menuElement);
+        if (!target) return noTableTargetToast();
+        ContextMenu.show(
+          ModelsMenu({
+            callback: async ({ model }) => {
+              await openTableDialog(target, mode, model);
+            },
+            setModel: () => {},
+          }),
+          { left: e.clientX, top: e.clientY },
+          null
+        );
+      }}
+    >
+      <span className="bp3-icon">
+        <FontAwesomeIcon icon={icon} />
+      </span>
+      <div className="bp3-text-overflow-ellipsis bp3-fill">{labelText}</div>
+    </a>
+  );
+}
+
+/**
+ * Inject Live AI items into a Roam table row/column context menu (portal-rendered
+ * .bp3-menu containing a .rm-table__delete-col item): "Live AI: auto-complete" in both
+ * row and column menus, plus "Live AI: multi-rows auto-complete" in row menus only.
+ */
+function insertTableAutocompleteMenuItems(menuElement) {
+  if (menuElement.querySelector(".livai-table-autocomplete-item")) return;
+  if (!menuElement.querySelector(".rm-table__delete-col")) return;
+
+  const isRow = !!menuElement.querySelector(
+    ".bp3-icon-arrow-up, .bp3-icon-arrow-down"
+  );
+  const isColumn = !!menuElement.querySelector(
+    ".bp3-icon-arrow-left, .bp3-icon-arrow-right, .bp3-icon-sort"
+  );
+  if (!isRow && !isColumn) return;
+
+  const divider = document.createElement("li");
+  divider.className = "bp3-menu-divider";
+  menuElement.appendChild(divider);
+
+  const mainItem = document.createElement("li");
+  mainItem.className = "livai-table-autocomplete-item";
+  ReactDOM.render(
+    buildTableMenuItemNode({
+      menuElement,
+      mode: isRow ? "row" : "column",
+      labelText: "Live AI: auto-complete",
+      icon: faBolt,
+    }),
+    mainItem
+  );
+  menuElement.appendChild(mainItem);
+
+  if (isRow) {
+    const multiItem = document.createElement("li");
+    multiItem.className = "livai-table-multirow-item";
+    ReactDOM.render(
+      buildTableMenuItemNode({
+        menuElement,
+        mode: "multi-row",
+        labelText: "Live AI: multi-rows auto-complete",
+        icon: faLayerGroup,
+      }),
+      multiItem
+    );
+    menuElement.appendChild(multiItem);
+  }
+
+  if (isColumn) {
+    const multiItem = document.createElement("li");
+    multiItem.className = "livai-table-multicol-item";
+    ReactDOM.render(
+      buildTableMenuItemNode({
+        menuElement,
+        mode: "multi-column",
+        labelText: "Live AI: multi-column auto-complete",
+        icon: faTableColumns,
+      }),
+      multiItem
+    );
+    menuElement.appendChild(multiItem);
+  }
+}
+
+/**
+ * Right-click on a table's "+" add-row / add-col button → open the multi-row /
+ * multi-column generate dialog for that table. These buttons live inside the table DOM
+ * (not a portal menu), so we catch them with a document-level contextmenu listener.
+ */
+async function handleTableAddButtonContextMenu(e) {
+  const addRowBtn = e.target?.closest?.(".rm-table__add-row-btn");
+  const addColBtn = e.target?.closest?.(".rm-table__add-col-btn");
+  if (!addRowBtn && !addColBtn) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const blockElement = (addRowBtn || addColBtn).closest(".rm-block");
+  const tableBlockUid = blockElement?.getAttribute("data-block-uid");
+  if (!tableBlockUid) return noTableTargetToast();
+
+  const defaultModel = extensionStorage.get("defaultModel") || undefined;
+
+  if (addRowBtn) {
+    // Anchor on the last row so the generated rows are appended at the bottom.
+    const model = getTableModel(tableBlockUid);
+    const lastIndex = model && model.rows.length ? model.rows.length - 1 : 0;
+    await openTableDialog(
+      { type: "row", index: lastIndex, tableBlockUid },
+      "multi-row",
+      defaultModel
+    );
+  } else {
+    await openTableDialog(
+      { type: "column", index: 0, tableBlockUid },
+      "multi-column",
+      defaultModel
+    );
+  }
+}
+
+const stripBlockParens = (uid) => String(uid).replace(/[()]/g, "").trim();
+
+/**
+ * Show a small spinner inside each table cell that is about to be (re)generated.
+ * `coords` is an array of { row, col, uid } (data-row/data-col in the rendered table).
+ * Returns { remove(uid), removeAll() } so a cell's spinner can be cleared the moment
+ * that cell is filled (progressive streaming), or all at once at the end.
+ */
+export function showCellSpinners(tableUid, coords) {
+  const noop = { remove() {}, removeAll() {} };
+  const tableElt =
+    document.querySelector(`.roam-block-container[data-block-uid="${tableUid}"]`) ||
+    document.querySelector(`.rm-block[data-block-uid="${tableUid}"]`);
+  if (!tableElt || !coords || !coords.length) return noop;
+
+  const hosts = [];
+  const hostByUid = new Map();
+  coords.forEach(({ row, col, uid }) => {
+    const td = tableElt.querySelector(
+      `td[data-row="${row}"][data-col="${col}"]`
+    );
+    if (!td) return;
+    td.classList.add("livai-spinner-cell");
+    const spinner = document.createElement("span");
+    spinner.className = "livai-cell-spinner";
+    td.appendChild(spinner);
+    const host = { td, spinner };
+    hosts.push(host);
+    if (uid != null) hostByUid.set(stripBlockParens(uid), host);
+  });
+
+  const clear = (host) => {
+    host.spinner.remove();
+    host.td.classList.remove("livai-spinner-cell");
+  };
+  return {
+    remove(uid) {
+      const key = stripBlockParens(uid);
+      const host = hostByUid.get(key);
+      if (host) {
+        clear(host);
+        hostByUid.delete(key);
+      }
+    },
+    removeAll() {
+      hosts.forEach(clear);
+    },
+  };
+}
+
+/**
+ * Briefly highlight the cells that were just filled/updated so the user can see what
+ * changed. Runs after a short delay to let Roam render the new cell content first.
+ */
+export function revealCells(tableUid, coords) {
+  if (!coords || !coords.length) return;
+  setTimeout(() => {
+    const tableElt =
+      document.querySelector(`.roam-block-container[data-block-uid="${tableUid}"]`) ||
+      document.querySelector(`.rm-block[data-block-uid="${tableUid}"]`);
+    if (!tableElt) return;
+    coords.forEach(({ row, col }) => {
+      const td = tableElt.querySelector(
+        `td[data-row="${row}"][data-col="${col}"]`
+      );
+      if (!td) return;
+      td.classList.add("livai-cell-revealed");
+      setTimeout(() => td.classList.remove("livai-cell-revealed"), 3500);
+    });
+  }, 180);
+}
+
+/**
  * Scan DOM and insert buttons for all query titles
  */
 function processQueryTitles() {
@@ -1011,6 +1415,31 @@ export function connectQueryObserver() {
     subtree: true,
   });
 
+  // Separate observer for Roam table row/column context menus (portal-rendered .bp3-menu
+  // containing a .rm-table__delete-col item) to inject "Auto-complete with AI".
+  tableMenuObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+        const deleteItem = node.matches?.(".rm-table__delete-col")
+          ? node
+          : node.querySelector?.(".rm-table__delete-col");
+        if (deleteItem) {
+          const menu = deleteItem.closest(".bp3-menu");
+          if (menu) insertTableAutocompleteMenuItems(menu);
+        }
+      }
+    }
+  });
+
+  tableMenuObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+
+  // Right-click on a table's "+" add-row / add-col buttons → generate rows/columns.
+  document.addEventListener("contextmenu", handleTableAddButtonContextMenu, true);
+
   console.log("✅ Query observer connected");
 }
 
@@ -1026,6 +1455,11 @@ export function disconnectQueryObserver() {
     datomicMenuObserver.disconnect();
     datomicMenuObserver = null;
   }
+  if (tableMenuObserver) {
+    tableMenuObserver.disconnect();
+    tableMenuObserver = null;
+  }
+  document.removeEventListener("contextmenu", handleTableAddButtonContextMenu, true);
   if (queryObserverDebounceTimer) {
     clearTimeout(queryObserverDebounceTimer);
     queryObserverDebounceTimer = null;

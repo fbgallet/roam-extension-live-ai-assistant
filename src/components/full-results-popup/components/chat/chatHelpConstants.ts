@@ -87,10 +87,10 @@ export const WHATS_NEW_VERSION = "33";
 
 export const WHATS_NEW_RESPONSE = `### What's New in Live AI v32 & v.33 (July 2026) 🎉
 
-#### **Reasoning effort that finally works**
-- Effort level now truly applies in chat — for OpenAI (gpt-5.x/o-series) and Claude thinking models (Opus 4.x, Sonnet 5)
-- GPT 5.6: new "xhigh" and "max" effort; turning thinking off keeps tools working
-- The chat now remembers your thinking on/off (per model) and Chat/Agent mode
+#### **AI-powered tables** 🧮
+- Right-click a Roam table's row/column handle (or its "+" add-row/add-col buttons) for new **Live AI: auto-complete** options
+- Fill only the empty or \`[bracketed]\` cells of a row/column, **update** filled cells, or **generate** whole new rows & columns — cells stream in one by one
+- Full control: pick the model, thinking effort & style, and add context (sidebar, current page, [[pages]], or inline notes written after \`{{[[table]]}}\`)
 
 #### **Better voice transcription**
 - Now works with Gemini (Google) and Grok (xAI) too — not just OpenAI Whisper
@@ -100,7 +100,8 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v32 & v.33 (July 20
 #### **More control over "thinking" models**
 - Turn reasoning on or off per conversation — and set your preferred default for each model
 - Works with more models now, including your own custom, OpenRouter and Ollama models
-- New "max" reasoning effort when you want the deepest thinking
+- GPT 5.6: new "xhigh" and "max" effort; turning thinking off keeps tools working
+- The chat now remembers your thinking on/off (per model) and Chat/Agent mode
 
 #### **New models**
 - OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5
@@ -113,6 +114,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 // Tips specific to Live AI (context menu, inline commands)
 export const LIVE_AI_TIPS = [
+  "**AI tables**: Right-click a Roam table's row or column handle (or its ➕ add-row/add-col buttons) to **auto-complete** empty or `[placeholder]` cells, **update** filled ones, or **generate** new rows/columns with AI — guided by the headers, an example, your instructions and optional context (sidebar, page, [[pages]], or notes written after `{{[[table]]}}`). Cells fill in progressively!",
   "**Did you know?** You can **convert between formats** easily: 'Outline to Paragraph' or 'Paragraph to Outline' commands restructure your content while preserving meaning",
   "**Hotkey tip**: Set a hotkey for 'Context Menu' (default: Cmd/Ctrl+Alt+A) to access Live AI quickly from any block! ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant#1-getting-started))",
   "**SmartBlocks integration**: Use `<%LIVEAIGEN:prompt,context,target%>` in SmartBlocks templates to automate AI-powered workflows ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands))",

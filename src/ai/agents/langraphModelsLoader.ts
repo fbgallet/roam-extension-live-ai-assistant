@@ -41,6 +41,20 @@ export function modelViaLanggraph(
 ) {
   let llm;
 
+  // No API key configured for this provider → its client library
+  // (openrouterLibrary, openaiLibrary, anthropicLibrary, …) is still undefined,
+  // and reading `llmInfos.library.baseURL` below would throw a cryptic
+  // "Cannot read properties of undefined (reading 'baseURL')". Fail early with a
+  // clear, actionable message instead. Ollama is the only keyless provider.
+  if (llmInfos.provider !== "ollama" && !llmInfos.library) {
+    throw new Error(
+      `No API key configured for the "${llmInfos.provider}" provider. Add your ` +
+        `${llmInfos.provider} API key in Live AI settings to use the model "${
+          llmInfos.name || llmInfos.id
+        }".`,
+    );
+  }
+
   const tokensUsageCallback = CallbackManager.fromHandlers({
     async handleLLMEnd(output: any) {
       console.log(
