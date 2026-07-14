@@ -2,8 +2,8 @@
 
 **New features**
 
-- **AI table auto-complete & generation** — right-click a Roam table's row or column handle (or its "+" add-row / add-col buttons) to reveal new **Live AI** options:
-  - **Auto-complete** a row or a column: fills only the empty cells or the `[bracketed instructions]` (e.g. `[city]`, `[a short bio of this author]`), guided by the column headers, an example row/value and your optional instructions. An **Overwrite** toggle updates already-filled cells instead (e.g. "translate this column to French", "round to 1 decimal").
+- **Roam table auto-complete** options: click a Roam table's row or column handle (or Right-Click its "+" add-row / add-col buttons) to reveal new **Live AI** options:
+  - **Auto-complete/update** a row or a column: fills only the empty cells or the `[bracketed instructions]` (e.g. `[city]`, `[a short bio of this author]`), guided by the column headers, an example row/value and your optional instructions. An **Overwrite** toggle updates already-filled cells instead (e.g. "translate this column to French", "round to 1 decimal").
   - **Multi-rows** and **multi-column** auto-complete: generate any number of new rows or columns filled by AI using the whole table as context (new column titles are proposed and set in **bold**, like native headers).
   - Everything is controllable from the dialog: pick the **model** (left/right-click the option or the in-dialog picker), toggle **thinking mode & reasoning effort**, choose a **style**, and add **context** — sidebar, current page, mentioned `[[pages]]`, or **inline instructions** written right after the `{{[[table]]}}` component in the same block.
 

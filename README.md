@@ -20,7 +20,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ### 🆕 New in v.33 (July, 2026)
 
-- 🆕 **AI table auto-complete**: right-click a Roam table's row/column handle (or its "+" buttons) to fill empty or `[placeholder]` cells, or generate whole new rows & columns with AI — with context, style, model & thinking controls, streamed cell by cell.
+- 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.
 - The chat now **remembers your choices**: thinking on/off (per model, for the session) and Chat/Agent mode (across sessions).
 - Fixed **reasoning effortt** in chat Panel, for OpenAI (gpt-5.6-x) and Claude thinking models (Opus 4.x, Sonnet 5). GPT 5.6 adds "xhigh"/"max" effort, and disabling thinking keeps tools working.
 

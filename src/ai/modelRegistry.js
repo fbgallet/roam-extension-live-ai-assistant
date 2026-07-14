@@ -67,7 +67,7 @@ export const MODEL_REGISTRY = {
     provider: "OpenAI",
     contextLength: 1050000,
     maxOutput: 128000,
-    pricing: { input: 5, output: 30 },
+    pricing: { input: 1, output: 6 },
     capabilities: {
       thinking: true,
       imageInput: true,

@@ -973,10 +973,10 @@ function insertDatomicQueryChatMenuItem(menuElement) {
  */
 function getTableTargetFromMenu(menuElement) {
   const isRow = !!menuElement.querySelector(
-    ".bp3-icon-arrow-up, .bp3-icon-arrow-down"
+    ".bp3-icon-arrow-up, .bp3-icon-arrow-down",
   );
   const isColumn = !!menuElement.querySelector(
-    ".bp3-icon-arrow-left, .bp3-icon-arrow-right, .bp3-icon-sort"
+    ".bp3-icon-arrow-left, .bp3-icon-arrow-right, .bp3-icon-sort",
   );
   const type = isRow ? "row" : isColumn ? "column" : null;
   if (!type) return null;
@@ -1007,7 +1007,7 @@ function getTableTargetFromMenu(menuElement) {
 
   const index = parseInt(
     cell.getAttribute(type === "row" ? "data-row" : "data-col"),
-    10
+    10,
   );
   if (Number.isNaN(index)) return null;
 
@@ -1023,7 +1023,7 @@ function dismissTableMenuAndBlur() {
       keyCode: 27,
       which: 27,
       bubbles: true,
-    })
+    }),
   );
   try {
     const active = document.activeElement;
@@ -1040,7 +1040,8 @@ async function openTableDialog(target, mode, initialModel) {
 
   let pageViewUid = null;
   try {
-    pageViewUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+    pageViewUid =
+      await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
   } catch (error) {
     // ignore — the "Current page" context option will simply have nothing to include
   }
@@ -1067,7 +1068,16 @@ async function openTableDialog(target, mode, initialModel) {
     label: labels[mode],
     initialModel,
     pageViewUid,
-    onSubmit: async ({ instructions, style, roamContext, includeAllRows, overwrite, rowCount, model, thinkingEnabled }) => {
+    onSubmit: async ({
+      instructions,
+      style,
+      roamContext,
+      includeAllRows,
+      overwrite,
+      rowCount,
+      model,
+      thinkingEnabled,
+    }) => {
       try {
         if (mode === "row") {
           await autoCompleteTableRow({
@@ -1141,7 +1151,8 @@ const noTableTargetToast = () =>
  * this run. The bp3-popover-dismiss class lets Roam close its own menu on click.
  */
 function buildTableMenuItemNode({ menuElement, mode, labelText, icon }) {
-  const getDefaultModel = () => extensionStorage.get("defaultModel") || undefined;
+  const getDefaultModel = () =>
+    extensionStorage.get("defaultModel") || undefined;
 
   return (
     <a
@@ -1166,7 +1177,7 @@ function buildTableMenuItemNode({ menuElement, mode, labelText, icon }) {
             setModel: () => {},
           }),
           { left: e.clientX, top: e.clientY },
-          null
+          null,
         );
       }}
     >
@@ -1188,10 +1199,10 @@ function insertTableAutocompleteMenuItems(menuElement) {
   if (!menuElement.querySelector(".rm-table__delete-col")) return;
 
   const isRow = !!menuElement.querySelector(
-    ".bp3-icon-arrow-up, .bp3-icon-arrow-down"
+    ".bp3-icon-arrow-up, .bp3-icon-arrow-down",
   );
   const isColumn = !!menuElement.querySelector(
-    ".bp3-icon-arrow-left, .bp3-icon-arrow-right, .bp3-icon-sort"
+    ".bp3-icon-arrow-left, .bp3-icon-arrow-right, .bp3-icon-sort",
   );
   if (!isRow && !isColumn) return;
 
@@ -1205,10 +1216,10 @@ function insertTableAutocompleteMenuItems(menuElement) {
     buildTableMenuItemNode({
       menuElement,
       mode: isRow ? "row" : "column",
-      labelText: "Live AI: auto-complete",
+      labelText: `Live AI: auto-complete/update ${isRow ? "row" : "column"}`,
       icon: faBolt,
     }),
-    mainItem
+    mainItem,
   );
   menuElement.appendChild(mainItem);
 
@@ -1222,7 +1233,7 @@ function insertTableAutocompleteMenuItems(menuElement) {
         labelText: "Live AI: multi-rows auto-complete",
         icon: faLayerGroup,
       }),
-      multiItem
+      multiItem,
     );
     menuElement.appendChild(multiItem);
   }
@@ -1237,7 +1248,7 @@ function insertTableAutocompleteMenuItems(menuElement) {
         labelText: "Live AI: multi-column auto-complete",
         icon: faTableColumns,
       }),
-      multiItem
+      multiItem,
     );
     menuElement.appendChild(multiItem);
   }
@@ -1269,13 +1280,13 @@ async function handleTableAddButtonContextMenu(e) {
     await openTableDialog(
       { type: "row", index: lastIndex, tableBlockUid },
       "multi-row",
-      defaultModel
+      defaultModel,
     );
   } else {
     await openTableDialog(
       { type: "column", index: 0, tableBlockUid },
       "multi-column",
-      defaultModel
+      defaultModel,
     );
   }
 }
@@ -1291,15 +1302,16 @@ const stripBlockParens = (uid) => String(uid).replace(/[()]/g, "").trim();
 export function showCellSpinners(tableUid, coords) {
   const noop = { remove() {}, removeAll() {} };
   const tableElt =
-    document.querySelector(`.roam-block-container[data-block-uid="${tableUid}"]`) ||
-    document.querySelector(`.rm-block[data-block-uid="${tableUid}"]`);
+    document.querySelector(
+      `.roam-block-container[data-block-uid="${tableUid}"]`,
+    ) || document.querySelector(`.rm-block[data-block-uid="${tableUid}"]`);
   if (!tableElt || !coords || !coords.length) return noop;
 
   const hosts = [];
   const hostByUid = new Map();
   coords.forEach(({ row, col, uid }) => {
     const td = tableElt.querySelector(
-      `td[data-row="${row}"][data-col="${col}"]`
+      `td[data-row="${row}"][data-col="${col}"]`,
     );
     if (!td) return;
     td.classList.add("livai-spinner-cell");
@@ -1338,12 +1350,13 @@ export function revealCells(tableUid, coords) {
   if (!coords || !coords.length) return;
   setTimeout(() => {
     const tableElt =
-      document.querySelector(`.roam-block-container[data-block-uid="${tableUid}"]`) ||
-      document.querySelector(`.rm-block[data-block-uid="${tableUid}"]`);
+      document.querySelector(
+        `.roam-block-container[data-block-uid="${tableUid}"]`,
+      ) || document.querySelector(`.rm-block[data-block-uid="${tableUid}"]`);
     if (!tableElt) return;
     coords.forEach(({ row, col }) => {
       const td = tableElt.querySelector(
-        `td[data-row="${row}"][data-col="${col}"]`
+        `td[data-row="${row}"][data-col="${col}"]`,
       );
       if (!td) return;
       td.classList.add("livai-cell-revealed");
@@ -1438,7 +1451,11 @@ export function connectQueryObserver() {
   });
 
   // Right-click on a table's "+" add-row / add-col buttons → generate rows/columns.
-  document.addEventListener("contextmenu", handleTableAddButtonContextMenu, true);
+  document.addEventListener(
+    "contextmenu",
+    handleTableAddButtonContextMenu,
+    true,
+  );
 
   console.log("✅ Query observer connected");
 }
@@ -1459,7 +1476,11 @@ export function disconnectQueryObserver() {
     tableMenuObserver.disconnect();
     tableMenuObserver = null;
   }
-  document.removeEventListener("contextmenu", handleTableAddButtonContextMenu, true);
+  document.removeEventListener(
+    "contextmenu",
+    handleTableAddButtonContextMenu,
+    true,
+  );
   if (queryObserverDebounceTimer) {
     clearTimeout(queryObserverDebounceTimer);
     queryObserverDebounceTimer = null;

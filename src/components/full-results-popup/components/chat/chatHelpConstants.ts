@@ -87,8 +87,8 @@ export const WHATS_NEW_VERSION = "33";
 
 export const WHATS_NEW_RESPONSE = `### What's New in Live AI v32 & v.33 (July 2026) 🎉
 
-#### **AI-powered tables** 🧮
-- Right-click a Roam table's row/column handle (or its "+" add-row/add-col buttons) for new **Live AI: auto-complete** options
+#### **AI-powered tables** 
+- Click a Roam table's row/column handle (or Right-click its "+" add-row/add-col buttons) for new **Live AI: auto-complete** or update options
 - Fill only the empty or \`[bracketed]\` cells of a row/column, **update** filled cells, or **generate** whole new rows & columns — cells stream in one by one
 - Full control: pick the model, thinking effort & style, and add context (sidebar, current page, [[pages]], or inline notes written after \`{{[[table]]}}\`)
 
