@@ -1,87 +1,43 @@
 {
   "models": {
-    "claude-sonnet-5": {
-      "id": "claude-sonnet-5",
-      "name": "Claude Sonnet 5",
-      "provider": "Anthropic",
-      "contextLength": 1000000,
-      "maxOutput": 128000,
-      "pricing": { "input": 3, "output": 15 },
+    "gemini-3.6-flash": {
+      "id": "gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash",
+      "provider": "Google",
+      "contextLength": 1048576,
+      "maxOutput": 65536,
+      "pricing": { "input": 1.5, "output": 7.5 },
       "capabilities": {
         "thinking": true,
         "imageInput": true,
         "webSearch": true,
-        "fileInput": true
+        "fileInput": true,
+        "videoInput": true,
+        "audioInput": true
       },
-      "thinkingDefault": true,
+      "thinkingOnly": true,
       "visibleByDefault": true,
-      "aliases": ["claude-sonnet", "claude-sonnet-5", "claude sonnet 5"]
+      "aliases": ["gemini-3-6-flash"]
     },
-    "gpt-5.6-sol": {
-      "id": "gpt-5.6-sol",
-      "name": "GPT 5.6 Sol",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 5, "output": 30 },
+
+    "gemini-3.5-flash-lite": {
+      "id": "gemini-3.5-flash-lite",
+      "name": "Gemini 3.5 Flash Lite",
+      "provider": "Google",
+      "contextLength": 1048576,
+      "maxOutput": 65536,
+      "pricing": { "input": 0.3, "output": 2.5 },
       "capabilities": {
         "thinking": true,
         "imageInput": true,
         "webSearch": true,
-        "fileInput": true
+        "fileInput": true,
+        "videoInput": true,
+        "audioInput": true
       },
+      "thinkingOnly": true,
       "visibleByDefault": true,
-      "thinkingDefault": true,
-      "aliases": ["GPT 5.6 Sol", "gpt-5-6-sol"]
-    },
-    "gpt-5.6-terra": {
-      "id": "gpt-5.6-terra",
-      "name": "GPT 5.6 Terra",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 2.5, "output": 15 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "thinkingDefault": true,
-      "aliases": ["GPT 5.6 Terra", "gpt-5-6-terra"]
-    },
-    "gpt-5.6-luna": {
-      "id": "gpt-5.6-luna",
-      "name": "GPT 5.6 Luna",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 1, "output": 6 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "thinkingDefault": true,
-      "aliases": ["GPT 5.6 Luna", "gpt-5-6-luna"]
-    },
-    "grok-4.5": {
-      "id": "grok-4.5",
-      "name": "Grok 4.5",
-      "provider": "Grok",
-      "contextLength": 500000,
-      "pricing": { "input": 2, "output": 6 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "aliases": ["grok-4-5", "grok-4.5", "grok-4"]
+      "aliases": ["gemini-3-5-flash-lite"]
     }
   }
 }

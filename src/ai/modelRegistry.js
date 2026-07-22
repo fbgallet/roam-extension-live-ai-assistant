@@ -163,52 +163,6 @@ export const MODEL_REGISTRY = {
     aliases: [],
   },
 
-  // "gpt-5-search-api": {
-  //   id: "gpt-5-search-api",
-  //   name: "gpt-5-search-api",
-  //   provider: "OpenAI",
-  //   contextLength: 128000,
-  //   pricing: { input: 1.25, output: 10 },
-  //   capabilities: {
-  //     imageInput: true,
-  //     webSearch: true,
-  //     fileInput: true,
-  //   },
-  //   useCompletionApi: true,
-  //   visibleByDefault: true,
-  //   aliases: ["gpt-5-search"],
-  // },
-
-  "gpt-4.1": {
-    id: "gpt-4.1",
-    name: "GPT-4.1",
-    provider: "OpenAI",
-    contextLength: 1047576,
-    pricing: { input: 2, output: 8 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: [],
-  },
-
-  "gpt-4.1-mini": {
-    id: "gpt-4.1-mini",
-    name: "GPT-4.1 mini",
-    provider: "OpenAI",
-    contextLength: 1047576,
-    pricing: { input: 0.4, output: 1.6 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: [],
-  },
-
   "o4-mini": {
     id: "o4-mini",
     name: "o4 mini",
@@ -263,25 +217,6 @@ export const MODEL_REGISTRY = {
     thinkingOnly: true,
     visibleByDefault: false,
     systemRole: "user",
-    aliases: [],
-  },
-
-  "o3-pro": {
-    id: "o3-pro",
-    name: "o3 pro",
-    provider: "OpenAI",
-    contextLength: 200000,
-    pricing: { input: 20, output: 80 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    thinkingOnly: true,
-    visibleByDefault: false,
-    noStreaming: true,
-    systemRole: "developer",
     aliases: [],
   },
 
@@ -369,24 +304,6 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-4.8-opus", "claude opus", "claude opus 4.8"],
   },
 
-  "claude-opus-4-7": {
-    id: "claude-opus-4-7",
-    name: "Claude Opus 4.7",
-    provider: "Anthropic",
-    contextLength: 1000000,
-    maxOutput: 128000,
-    pricing: { input: 5, output: 25 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-    aliases: ["claude-4.7-opus", "claude opus 4.7"],
-  },
-
   "claude-opus-4-6": {
     id: "claude-opus-4-6",
     name: "Claude Opus 4.6",
@@ -421,24 +338,6 @@ export const MODEL_REGISTRY = {
     thinkingDefault: true,
     visibleByDefault: true,
     aliases: ["claude-sonnet", "claude-sonnet-5", "claude sonnet 5"],
-  },
-
-  "claude-sonnet-4-6": {
-    id: "claude-sonnet-4-6",
-    name: "Claude Sonnet 4.6",
-    provider: "Anthropic",
-    contextLength: 1000000,
-    maxOutput: 64000,
-    pricing: { input: 3, output: 15 },
-    capabilities: {
-      thinking: true, // Supports thinking mode (toggled via UI)
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-    aliases: ["claude-sonnet-4.6", "claude sonnet 4.6"],
   },
 
   "claude-haiku-4-5-20251001": {
@@ -479,6 +378,26 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3.1-pro"],
   },
 
+  "gemini-3.6-flash": {
+    id: "gemini-3.6-flash",
+    name: "Gemini 3.6 Flash",
+    provider: "Google",
+    contextLength: 1048576,
+    maxOutput: 65536,
+    pricing: { input: 1.5, output: 7.5 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+      videoInput: true,
+      audioInput: true,
+    },
+    thinkingOnly: true,
+    visibleByDefault: true,
+    aliases: ["gemini-3-6-flash"],
+  },
+
   "gemini-3.5-flash": {
     id: "gemini-3.5-flash",
     name: "Gemini 3.5 Flash",
@@ -499,13 +418,13 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3-5-flash"],
   },
 
-  "gemini-3-flash-preview": {
-    id: "gemini-3-flash-preview",
-    name: "Gemini 3 Flash",
+  "gemini-3.5-flash-lite": {
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash Lite",
     provider: "Google",
     contextLength: 1048576,
     maxOutput: 65536,
-    pricing: { input: 0.5, output: 3 },
+    pricing: { input: 0.3, output: 2.5 },
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -514,28 +433,9 @@ export const MODEL_REGISTRY = {
       videoInput: true,
       audioInput: true,
     },
-    thinkingDefault: true,
     thinkingOnly: true,
-    visibleByDefault: false,
-    aliases: ["gemini-3-flash"],
-  },
-
-  "gemini-3.1-flash-lite": {
-    id: "gemini-3.1-flash-lite",
-    name: "Gemini 3.1 Flash Lite",
-    provider: "Google",
-    contextLength: 1048576,
-    maxOutput: 65536,
-    pricing: { input: 0.25, output: 1.5 },
-    capabilities: {
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-      videoInput: true,
-      audioInput: true,
-    },
     visibleByDefault: true,
-    aliases: ["gemini-3.1-flash-lite-preview"],
+    aliases: ["gemini-3-5-flash-lite"],
   },
 
   // Google Image Generation Models
