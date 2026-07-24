@@ -1069,9 +1069,9 @@ function getPanelConfig() {
       },
       {
         id: "alwaysExtractPdf",
-        name: "Always extract PDF content",
+        name: "Always extract attached files content",
         description:
-          "Automatically extract and include PDF content found in the prompt or context, without needing to check the PDF checkbox each time",
+          "Automatically extract and include the content of files found in the prompt or context (PDF, .md, .txt, .csv, code files, and .docx/.pptx with OpenAI models), without needing to check the Files checkbox each time",
         action: {
           type: "switch",
           onChange: () => {

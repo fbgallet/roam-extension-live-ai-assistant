@@ -1,3 +1,24 @@
+### v.34 (July 26th, 2026) Attached files as input: Markdown, text & Office documents
+
+**New features**
+
+- **Attached files as input**, in your prompt or in your context, in addition to `.pdf`:
+  - **Plain-text formats** — `.md`, `.txt`, `.csv`, `.tsv`, `.json`, `.xml`, `.yaml`, `.org` and the most common code files — their content is read and inserted directly in the request, so **every model can use them**, whatever its provider: this includes local Ollama models and text-only models that don't support .pdf.
+  - **Office documents** — `.docx`, `.pptx`, `.xlsx`, `.rtf`, `.odt`… — are sent to **OpenAI models**, currently the only ones able to parse them. With any other model, a clear warning invites you to switch model or to export your file to PDF, instead of letting the AI invent content from a file name it can't open.
+  - Files are recognized both as Roam attachments (`[my-notes.md](firebase url)`) and as direct web urls. Very large files are truncated (with an explicit mention) so they can't eat the whole context window.
+  - The `PDF` checkbox in the Context menu becomes `Files`, and the "Always extract PDF content" setting becomes "Always extract attached files content": both now cover every supported format.
+
+**Updates**
+
+- New models support: Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
+
+**Fixed**
+
+- **Gemini models were ignoring a .pdf provided in the context as soon as the thinking level was raised** (it only worked at "low"): the PDF was properly attached, but its url was also left in the context, so the more the model reasoned, the more likely it was to try to fetch it — which Google can't do — and to answer that no PDF was provided.
+- A .pdf that failed to upload to Gemini was silently ignored: failures are now reported, and the extension waits for Google to finish processing the file. Gemini also warns you when it has spent its whole output budget on reasoning and returned an empty answer.
+- **.pdf support repaired for several providers**: Groq, DeepSeek, custom OpenAI-compatible endpoints, OpenRouter and Grok, each sending the file in a format their API doesn't accept.
+- With Claude models, a .pdf placed in the prompt disabled its own processing (its url was treated as a web page to fetch), and images and .pdf files were silently ignored when thinking mode was enabled.
+
 ### v.33 (July 14th, 2026) AI table auto-complete & reasoning effort that actually works
 
 **New features**

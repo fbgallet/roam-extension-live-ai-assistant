@@ -18,16 +18,17 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### 🆕 New in v.34 (July, 2026)
+
+- **New models support**: Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
+- 🆕 **Attached files as input**, beyond `.pdf`: `.md`, `.txt`, `.csv`, `.json`, code files… are read and inserted in your request, so **any model** can use them (even local ones). `.docx`/`.pptx`/`.xlsx` work with **OpenAI models**.
+- Fixed **Gemini ignoring a .pdf from the context** at medium/high thinking level, and repaired `.pdf` support for OpenRouter, Groq, DeepSeek, Grok, custom endpoints, and Claude models with thinking enabled.
+
 ### 🆕 New in v.33 (July, 2026)
 
 - 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.
 - The chat now **remembers your choices**: thinking on/off (per model, for the session) and Chat/Agent mode (across sessions).
 - Fixed **reasoning effortt** in chat Panel, for OpenAI (gpt-5.6-x) and Claude thinking models (Opus 4.x, Sonnet 5). GPT 5.6 adds "xhigh"/"max" effort, and disabling thinking keeps tools working.
-
-### 🆕 New in v.32 (July 9th, 2026)
-
-- **New models support**: OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5, Nano Banana 2 Lite
-- Voice transcription now supports Gemini (Google) and Grok (xAI) models, in addition to OpenAI Whisper / gpt-4o-transcribe models; more reliable transcription.
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -174,7 +175,7 @@ To define the context, you can either check the corresponding box in the context
 - **Siblings**: sibling blocks of the focused or selected block(s)
 - **Path**: ancestor blocks (path from root to the focused or selected block)
 - **Queries**: results of Roam native queries or :q Datomic queries present in the context
-- **Pdf**: if .pdf documents are present in your notes, as file or as web url, they can be processed by the AI model (OpenAI or Anthropic models)
+- **Files**: if documents are present in your notes, as attached file or as web url, they can be processed by the AI model: `.pdf` (OpenAI, Anthropic, Google and OpenRouter models), plain-text files like `.md`, `.txt`, `.csv`, `.json` or code files (any model), `.docx`, `.pptx` and `.xlsx` (OpenAI models only)
 
 > [!TIP]
 > If a context is defined (or if you have selected multiple blocks as prompt) the uids (or block reference identifier) of all the corresponding blocks will be provided to the LLM, so it can refer to one of them if needed.
@@ -282,9 +283,14 @@ In your prompt, you can provide:
 - **Image in prompt**: the image generation can rely on existing images (as inspiration or source to edit). Simply insert one or multiple images in your prompt (by selecting the corresponding blocks or putting them in the choosen context). Be aware that each input image will add input tokens cost.
 - **Image edition**: Gemini Nano banana models, GPT Image 1.5 and Grok Imagine allow direct image edition: just insert the image to edit in your prompt or context and ask for modifications. **Multi-turn image editing** is supported: in the Chat panel, once an image has been generated, you can switch to Edit image mode — all further prompts are then applied as modifications to the previous image; use `/exit-edit` to return to conversation mode. In Roam blocks, create a child block under an existing image and use the `Image generation` command to iteratively edit the image. Google Imagen-4 models don't support edit. For OpenAI models you can target the image edition to a specific part of an image by attaching a copy of the initial image with a transparent area (alpha channel) to indicate where the requested change should be made without altering the rest. The image used as a mask will only be recognized as such if you add the keyword `mask` in the markdown link to the image, e.g.: `![mask](url)`
 
-### Use PDF files as input
+### Use PDF and other files as input
 
 OpenAI, Anthropic and Google models supporting images as input support also `.pdf` files in your prompt or in the context. You can insert them both as simple web url or as `{{[[pdf]]: ...}}` component specific to Roam (including the firebase url where your pdf is stored).
+
+🆕 **Other file formats** are supported since v.34, inserted either as a Roam attachment (`[my-notes.md](url)`) or as a direct web url:
+
+- **plain-text formats** (`.md`, `.txt`, `.csv`, `.tsv`, `.json`, `.xml`, `.yaml`, `.org` and the most common code files): their content is read and inserted directly in your request, so they work with **any model**, including local Ollama models and models that don't support `.pdf`. Very large files are truncated (with an explicit mention) to preserve the context window.
+- **Office documents** (`.docx`, `.pptx`, `.xlsx`, `.rtf`, `.odt`…): currently supported by **OpenAI models only**, which extract their text. With any other model, a warning invites you to switch model or to export your document to PDF.
 
 In Chat panel, you can insert a pdf in the prompt or in the context and chat with its content! If your pdf is in the context, you have to explicitly mention "pdf" keyword in your first prompt to allow the agent to extract .pdf from the context.
 

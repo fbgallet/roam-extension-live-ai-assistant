@@ -70,6 +70,8 @@ import {
   addVideosToGeminiMessage,
   addAudioToGeminiMessage,
   isModelSupportingImage,
+  isModelSupportingPdf,
+  addOfficeFilesToMessages,
 } from "./multimodalAI";
 import {
   handleFileExport,
@@ -77,6 +79,13 @@ import {
   getFileExportConfig,
   getFileExportPrompt,
 } from "./fileExport";
+
+/**
+ * Replaces the Roam markup of a PDF that has been uploaded/attached to the
+ * request, so the model reads the document from the attachment instead of
+ * trying (and failing) to fetch a Roam-hosted url it has no access to.
+ */
+const PDF_ATTACHED_NOTE = "[PDF attached to this message]";
 
 /**
  * Create a stream target that handles chunk display.
@@ -580,8 +589,26 @@ export async function claudeCompletion({
         options.temperature = modelTemperature;
       if (streamResponse && responseFormat === "text") options.stream = true;
 
+      // PDFs are sent as document blocks, so their urls must not be counted as
+      // urls to fetch: web_fetch can't reach a Roam-hosted file and the model
+      // would report the document as unavailable instead of reading the block.
+      const promptStr = JSON.stringify(prompt);
+      pdfLinkRegex.lastIndex = 0;
+      const hasPdfInPrompt = pdfLinkRegex.test(promptStr);
+      pdfLinkRegex.lastIndex = 0;
+      const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
+      const withPdf =
+        (hasPdfInPrompt || hasPdfInContent) &&
+        isModelSupportingPdf(model) &&
+        // "Fetch url" explicitly asks Claude to go and read the url itself.
+        command !== "Fetch url";
+      const promptWithoutPdfLinks = withPdf
+        ? promptStr.replace(pdfLinkRegex, "")
+        : promptStr;
+
       let isUrlToFetch;
-      if (command === "Fetch url" || urlRegex.test(JSON.stringify(prompt))) {
+      urlRegex.lastIndex = 0;
+      if (command === "Fetch url" || urlRegex.test(promptWithoutPdfLinks)) {
         options.tools = [
           {
             type: "web_fetch_20250910",
@@ -655,22 +682,18 @@ export async function claudeCompletion({
       // );
       // See server code here: https://github.com/fbgallet/ai-api-back
 
-      if (!isUrlToFetch && isModelSupportingImage(model)) {
-        if (
-          pdfLinkRegex.test(JSON.stringify(prompt)) ||
-          (includePdfInContext && pdfLinkRegex.test(content))
-        ) {
-          options.messages = await addPdfUrlToMessages(
-            messages,
-            includePdfInContext ? content : "",
-            provider,
-          );
-        } else
-          options.messages = await addImagesUrlToMessages(
-            messages,
-            content,
-            true,
-          );
+      if (withPdf) {
+        options.messages = await addPdfUrlToMessages(
+          messages,
+          hasPdfInContent ? content : "",
+          provider,
+        );
+      } else if (!isUrlToFetch && isModelSupportingImage(model)) {
+        options.messages = await addImagesUrlToMessages(
+          messages,
+          content,
+          true,
+        );
       }
       console.log("options :>> ", options);
 
@@ -948,18 +971,28 @@ export async function openaiCompletionLegacy({
     },
   ].concat(prompt);
 
-  if (isModelSupportingImage(model)) {
-    if (
-      pdfLinkRegex.test(JSON.stringify(prompt)) ||
-      (includePdfInContext && pdfLinkRegex.test(content))
-    ) {
-      withPdf = true;
-      messages = await addPdfUrlToMessages(
-        messages,
-        includePdfInContext ? content : "",
-        provider,
-      );
-    } else messages = await addImagesUrlToMessages(messages, content);
+  pdfLinkRegex.lastIndex = 0;
+  const hasPdfInPrompt = pdfLinkRegex.test(JSON.stringify(prompt));
+  pdfLinkRegex.lastIndex = 0;
+  const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
+  withPdf = (hasPdfInPrompt || hasPdfInContent) && isModelSupportingPdf(model);
+
+  // Only OpenAI and Grok expose a Responses API; the other OpenAI-compatible
+  // providers reached here (OpenRouter, Groq, DeepSeek, custom endpoints) must
+  // stay on /chat/completions, which carries PDFs as a "file" part instead.
+  const usesResponsesApi =
+    model === "o3-pro" ||
+    (withPdf && (provider === "OpenAI" || provider === "Grok"));
+
+  if (withPdf) {
+    messages = await addPdfUrlToMessages(
+      messages,
+      hasPdfInContent ? content : "",
+      provider,
+      usesResponsesApi,
+    );
+  } else if (isModelSupportingImage(model)) {
+    messages = await addImagesUrlToMessages(messages, content);
   }
 
   // console.log("Messages sent as prompt to the model:", messages);
@@ -980,7 +1013,7 @@ export async function openaiCompletionLegacy({
       model: modelWithOnline,
       stream: isToStream,
     };
-    if (model === "o3-pro" || (withPdf && provider !== "openRouter")) {
+    if (usesResponsesApi) {
       options.input = messages;
       options["text"] = { format: { type: responseFormat } };
       options.stream = model === "o3-pro" ? false : streamResponse;
@@ -1009,7 +1042,7 @@ export async function openaiCompletionLegacy({
 
     // OpenAI reasoning models (o-series always on; gpt-5 follows the toggle).
     if (thinkingCfg.scheme === "openai-reasoning" && thinkingCfg.effort) {
-      if (withPdf) options["reasoning"] = { effort: thinkingCfg.effort };
+      if (usesResponsesApi) options["reasoning"] = { effort: thinkingCfg.effort };
       else options["reasoning_effort"] = thinkingCfg.effort;
     }
 
@@ -1061,7 +1094,7 @@ export async function openaiCompletionLegacy({
 
     console.log("options :>> ", options);
 
-    if (!isSafari && model !== "o3-pro" && !withPdf) {
+    if (!isSafari && !usesResponsesApi && !withPdf) {
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
           reject(
@@ -1076,10 +1109,9 @@ export async function openaiCompletionLegacy({
         timeoutPromise,
       ]);
     } else {
-      response =
-        model === "o3-pro" || (withPdf && provider !== "openRouter")
-          ? await aiClient.responses.create(options)
-          : await aiClient.chat.completions.create(options);
+      response = usesResponsesApi
+        ? await aiClient.responses.create(options)
+        : await aiClient.chat.completions.create(options);
     }
     let streamEltCopy = "";
     let annotations;
@@ -1120,7 +1152,7 @@ export async function openaiCompletionLegacy({
           let streamData;
           if (!chunk.choices?.length && model === "o3-pro" && chunk.output_text)
             streamData = chunk.output_text;
-          else if (withPdf && chunk.delta) streamData = chunk;
+          else if (usesResponsesApi && chunk.delta) streamData = chunk;
           else streamData = chunk.choices?.length ? chunk.choices[0] : null;
 
           chunkStr =
@@ -1169,8 +1201,7 @@ export async function openaiCompletionLegacy({
     // Add web sources annotations with Web search models
     if (
       !isToStream &&
-      model !== "o3-pro" &&
-      !withPdf &&
+      !usesResponsesApi &&
       response.choices[0].message.annotations?.length
     )
       annotations = response.choices[0].message.annotations;
@@ -1188,7 +1219,7 @@ export async function openaiCompletionLegacy({
       output_tokens: usage.completion_tokens || usage.output_tokens,
     });
     console.log(respStr);
-    return model === "o3-pro" || (withPdf && !isToStream)
+    return usesResponsesApi && !isToStream
       ? response.output_text
       : isToStream
         ? respStr
@@ -1239,25 +1270,35 @@ export async function openaiResponse({
   ].concat(prompt);
 
   // Handle images and PDFs for Response API
-  if (isModelSupportingImage(model)) {
-    if (
-      pdfLinkRegex.test(JSON.stringify(prompt)) ||
-      (includePdfInContext && pdfLinkRegex.test(content))
-    ) {
-      input = await addPdfUrlToMessages(
-        input,
-        includePdfInContext ? content : "",
-        provider,
-        true, // useResponseApi
-      );
-    } else {
-      input = await addImagesUrlToMessages(
-        input,
-        content,
-        false, // isAnthropicModel
-        true, // useResponseApi
-      );
-    }
+  pdfLinkRegex.lastIndex = 0;
+  const hasPdfInPrompt = pdfLinkRegex.test(JSON.stringify(prompt));
+  pdfLinkRegex.lastIndex = 0;
+  const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
+
+  if ((hasPdfInPrompt || hasPdfInContent) && isModelSupportingPdf(model)) {
+    input = await addPdfUrlToMessages(
+      input,
+      hasPdfInContent ? content : "",
+      provider,
+      true, // useResponseApi
+    );
+  } else if (isModelSupportingImage(model)) {
+    input = await addImagesUrlToMessages(
+      input,
+      content,
+      false, // isAnthropicModel
+      true, // useResponseApi
+    );
+  }
+
+  // Office documents (.docx, .pptx, .xlsx…): OpenAI extracts their text
+  // server-side. Other providers never reach this, they get a note instead
+  // (see preprocessAttachedFiles).
+  if (provider === "OpenAI") {
+    input = await addOfficeFilesToMessages(
+      input,
+      includePdfInContext ? content : "",
+    );
   }
 
   try {
@@ -1589,6 +1630,8 @@ export async function googleCompletion({
     roamImageRegex.lastIndex = 0;
     pdfLinkRegex.lastIndex = 0;
     const hasPdfInPrompt = pdfLinkRegex.test(JSON.stringify(prompt));
+    // /g regexes keep their lastIndex between calls: reset before each test.
+    pdfLinkRegex.lastIndex = 0;
     const hasPdfInContent = includePdfInContext && pdfLinkRegex.test(content);
     const hasImageInPrompt = roamImageRegex.test(JSON.stringify(prompt));
     const hasImageInContent = roamImageRegex.test(content);
@@ -1602,9 +1645,37 @@ export async function googleCompletion({
     const hasAudioInContent =
       prompt.includes("audio") && roamAudioRegex.test(content);
 
+    // PDFs are attached in two different ways: Roam-hosted ones are uploaded to
+    // the Files API and carried by the message itself, external ones can only be
+    // read by Gemini through the URL Context tool. Track both, so that the tool
+    // is only enabled when there is actually a url to fetch: offering it while
+    // the PDF is already attached makes higher thinking levels try to fetch the
+    // (unfetchable) Roam url and conclude that no PDF was provided.
+    const externalPdfUrls = [];
+    const failedPdfUrls = [];
+    const collectPdfs = async (parts, source) => {
+      const result = await addPdfToGeminiMessage(parts, source);
+      externalPdfUrls.push(...result.externalPdfUrls);
+      failedPdfUrls.push(...result.failedUrls);
+      return result;
+    };
+
+    // Resolve the context PDFs first: the raw {{[[pdf]]: url}} markup has to be
+    // replaced in the system instruction by a note saying the file is attached,
+    // for the same reason.
+    let contextPdfParts = [];
+    let contentForModel = content;
+    if (hasPdfInContent) {
+      const pdfResult = await collectPdfs([], content);
+      contextPdfParts = pdfResult.messageParts;
+      for (const { match } of pdfResult.attached)
+        contentForModel = contentForModel.replace(match, PDF_ATTACHED_NOTE);
+    }
+
     // Prepare system instruction and history in Google's format
     const history = [];
-    let systemInstruction = systemPrompt + (content ? "\n\n" + content : "");
+    let systemInstruction =
+      systemPrompt + (contentForModel ? "\n\n" + contentForModel : "");
 
     // Add video instructions if videos are detected
     if (hasVideoInPrompt || hasVideoInContent) {
@@ -1647,29 +1718,20 @@ export async function googleCompletion({
           currentMessageParts = [{ text: msg.content }];
 
           // Add PDFs from the last prompt message
+          pdfLinkRegex.lastIndex = 0;
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
-            const pdfResult = await addPdfToGeminiMessage(
+            const pdfResult = await collectPdfs(
               currentMessageParts,
               msg.content,
             );
             currentMessageParts = pdfResult.messageParts;
 
-            // For external PDFs, keep URLs in text (for URL Context tool)
-            // For Firebase PDFs, remove from text (already uploaded to Files API)
-            pdfLinkRegex.lastIndex = 0;
-            const allPdfMatches = Array.from(
-              msg.content.matchAll(pdfLinkRegex),
-            );
+            // For external PDFs, keep URLs in text (for URL Context tool).
+            // Attached ones are replaced by a note, so the model doesn't try to
+            // fetch a url it can't reach.
             let cleanedText = currentMessageParts[0].text;
-
-            for (const match of allPdfMatches) {
-              const url = match[1] || match[2];
-              // Only remove Firebase URLs (Files API), keep external URLs for URL Context
-              if (url.includes("firebasestorage.googleapis.com")) {
-                cleanedText = cleanedText.replace(match[0], "").trim();
-              }
-            }
-
+            for (const { match } of pdfResult.attached)
+              cleanedText = cleanedText.replace(match, PDF_ATTACHED_NOTE).trim();
             currentMessageParts[0].text = cleanedText;
           }
 
@@ -1715,29 +1777,17 @@ export async function googleCompletion({
           let userParts = [{ text: msg.content }];
 
           // Add PDFs from history messages
+          pdfLinkRegex.lastIndex = 0;
           if (hasPdfInPrompt && pdfLinkRegex.test(msg.content)) {
-            const pdfResult = await addPdfToGeminiMessage(
-              userParts,
-              msg.content,
-            );
+            const pdfResult = await collectPdfs(userParts, msg.content);
             userParts = pdfResult.messageParts;
 
-            // For external PDFs, keep URLs in text (for URL Context tool)
-            // For Firebase PDFs, remove from text (already uploaded to Files API)
-            pdfLinkRegex.lastIndex = 0;
-            const allPdfMatches = Array.from(
-              msg.content.matchAll(pdfLinkRegex),
-            );
+            // For external PDFs, keep URLs in text (for URL Context tool).
+            // Attached ones are replaced by a note, so the model doesn't try to
+            // fetch a url it can't reach.
             let cleanedText = userParts[0].text;
-
-            for (const match of allPdfMatches) {
-              const url = match[1] || match[2];
-              // Only remove Firebase URLs (Files API), keep external URLs for URL Context
-              if (url.includes("firebasestorage.googleapis.com")) {
-                cleanedText = cleanedText.replace(match[0], "").trim();
-              }
-            }
-
+            for (const { match } of pdfResult.attached)
+              cleanedText = cleanedText.replace(match, PDF_ATTACHED_NOTE).trim();
             userParts[0].text = cleanedText;
           }
 
@@ -1779,16 +1829,10 @@ export async function googleCompletion({
       }
     }
 
-    // Add PDFs from context if enabled
-    if (hasPdfInContent) {
-      const pdfResult = await addPdfToGeminiMessage(
-        currentMessageParts,
-        content,
-      );
-      currentMessageParts = pdfResult.messageParts;
-      // Note: external PDF URLs from context are already in the systemInstruction (content)
-      // so URL Context tool will pick them up automatically
-    }
+    // Attach the context PDFs resolved above to the current message.
+    // Note: external PDF URLs from context are already in the systemInstruction
+    // (content), so the URL Context tool will pick them up automatically.
+    if (contextPdfParts.length) currentMessageParts.push(...contextPdfParts);
 
     // Add images from context
     if (hasImageInContent) {
@@ -1842,9 +1886,18 @@ export async function googleCompletion({
     if (command === "Web search") {
       toolsConfig.push({ googleSearch: {} });
     }
-    // Add URL Context tool for PDFs (allows Gemini to fetch external PDFs directly)
-    if (hasPdfInPrompt || hasPdfInContent) {
+    // Add URL Context tool only for PDFs Gemini has to fetch itself. Enabling it
+    // for already-attached (Roam-hosted) PDFs makes the model attempt a fetch it
+    // can't complete, and answer that no PDF was provided.
+    if (externalPdfUrls.length) {
       toolsConfig.push({ urlContext: {} });
+    }
+
+    if (failedPdfUrls.length) {
+      AppToaster.show({
+        message: `⚠️ ${failedPdfUrls.length} PDF(s) could not be attached to the request and will be ignored by ${model}. See the console for details.`,
+        timeout: 15000,
+      });
     }
 
     // Create chat configuration
@@ -1930,6 +1983,16 @@ export async function googleCompletion({
       const response = await aiClient.models.generateContent(generateConfig);
 
       respStr = response.text || "";
+
+      // A high thinking level on a long document can consume the whole output
+      // budget before a single visible token is emitted: say so instead of
+      // returning silently empty.
+      if (!respStr && response.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+        AppToaster.show({
+          message: `${model} used its entire output budget on reasoning and returned no answer. Try a lower thinking level (Reasoning effort setting) or a shorter context.`,
+          timeout: 15000,
+        });
+      }
 
       if (response.usageMetadata) {
         usage = {

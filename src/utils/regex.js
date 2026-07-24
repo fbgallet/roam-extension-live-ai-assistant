@@ -23,6 +23,33 @@ export const roamAudioRegex =
   /\{\{\[?\[?audio\]?\]?:\s?(https?:[^\s}]+)\}\}|https?:[^\s)]+\.(mp3|wav|aiff|aac|ogg|flac|m4a)/gi;
 export const pdfLinkRegex =
   /(http[^\s)]+\.pdf)|{{\[?\[?pdf\]?\]?:\s?(https?:[^\s})]+)}}/g;
+
+// Attached documents other than PDF, which has its own dedicated handling.
+// Plain-text formats are inlined as text and readable by every model; Office
+// formats can only be parsed by OpenAI models (see multimodalAI).
+export const textFileExtensions = [
+  "md", "markdown", "txt", "text", "csv", "tsv", "json", "xml", "yaml", "yml",
+  "org", "log", "js", "jsx", "ts", "tsx", "py", "rb", "java", "c", "h", "cpp",
+  "cs", "go", "rs", "php", "sh", "sql", "css",
+];
+export const officeFileExtensions = [
+  "docx", "doc", "pptx", "ppt", "xlsx", "xls", "rtf", "odt", "odp", "ods",
+];
+// Three shapes, in order: a markdown link whose label is the file name — what
+// Roam produces for an attachment, its url carrying a ?alt=media query and so
+// never ending with the extension —, a markdown link with an arbitrary label
+// over a url that ends with a known extension, and a bare url. The two link
+// forms must come first so the whole link is consumed: matching only the url
+// inside would corrupt the markdown when the match is replaced.
+const anyFileExtension = [...textFileExtensions, ...officeFileExtensions].join(
+  "|",
+);
+export const attachedFileRegex = new RegExp(
+  `\\[(?<label>[^\\]\\n]*?\\.(?:${anyFileExtension}))\\]\\((?<url1>https?:[^\\s)]+)\\)` +
+    `|\\[[^\\]\\n]*\\]\\((?<url2>https?:[^\\s)\\]]+\\.(?:${anyFileExtension}))\\)` +
+    `|(?<url3>https?:[^\\s)\\]]+\\.(?:${anyFileExtension}))(?![\\w.])`,
+  "gi",
+);
 export const urlRegex =
   /(?:https?):\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/\/=]*)/g;
 export const sbParamRegex = /^\{.*\}$/;

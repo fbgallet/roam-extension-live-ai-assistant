@@ -283,11 +283,11 @@ When agent mode is enabled, you can select which tools the agent can use. Each t
 
 When creating a local database, you choose an embedding model:
 
-| Model | ID | Best for | Size |
-|---|---|---|---|
-| **English** | `Xenova/bge-small-en-v1.5` | Best quality for English content | ~10 MB |
-| **English (faster)** | `Xenova/all-MiniLM-L6-v2` | Fast English embeddings, faster indexing | ~10 MB |
-| **Multilingual** | `Xenova/multilingual-e5-small` | 100+ languages | ~40 MB |
+| Model                | ID                             | Best for                                 | Size   |
+| -------------------- | ------------------------------ | ---------------------------------------- | ------ |
+| **English**          | `Xenova/bge-small-en-v1.5`     | Best quality for English content         | ~10 MB |
+| **English (faster)** | `Xenova/all-MiniLM-L6-v2`      | Fast English embeddings, faster indexing | ~10 MB |
+| **Multilingual**     | `Xenova/multilingual-e5-small` | 100+ languages                           | ~40 MB |
 
 The model is downloaded once on first use and cached in the browser. You can see which model a database uses by hovering over its provider tag in the database list.
 
@@ -322,6 +322,7 @@ The model is downloaded once on first use and cached in the browser. You can see
 **Getting started**:
 
 When enabling the vector search tool for the first time, you can either:
+
 - **Index your Roam graph (Local)** — creates a local database and indexes all your pages and daily notes entirely in your browser, for free
 - **Index your Roam graph (OpenAI)** — creates an OpenAI-backed database (requires an OpenAI API key)
 - **Upload files (OpenAI)** — creates an "Uploaded Files" database and lets you upload documents (PDFs, DOCX, etc.)
@@ -702,18 +703,18 @@ When the agent uses tools, they're displayed in the conversation:
 **For bulk work** (cheap, fast):
 
 - DeepSeek ($0.14/$0.28 per 1M tokens)
-- Google Gemini Flash
+- Google Gemini 3.5 Flash Lite
 
 **For quality** (accurate, thoughtful):
 
-- Claude Sonnet or Haiku
-- GPT-5.1
-- Google Gemini Pro
+- GPT-5.6-terra or -sol
+- Claude Sonnet or Opus
+- Grok 4.5
 
 **For speed** (quick responses):
 
-- GPT-4.1-mini
-- Gemini Flash
+- GPT-5.6-luna
+- Gemini 3.6 Flash
 
 **Switching models**: Type the first letters of the provider name in the context menu for instant switching
 

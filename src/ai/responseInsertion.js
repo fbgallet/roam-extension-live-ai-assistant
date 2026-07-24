@@ -76,7 +76,7 @@ import { BUILTIN_STYLES } from "./styleConstants";
 import { AppToaster } from "../components/Toaster";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import { openChatPopup } from "../components/full-results-popup";
-import { imageGeneration } from "./multimodalAI";
+import { imageGeneration, preprocessAttachedFiles } from "./multimodalAI";
 import { getContextFromQueries } from "./queryContextExtractor";
 
 export const lastCompletion = {
@@ -129,6 +129,17 @@ export async function aiCompletion({
   ) {
     systemPrompt += "\n" + roamKanbanFormat;
   }
+
+  // Attached documents other than PDF: plain-text files (.md, .csv, code…) are
+  // inlined here so every provider can read them, whatever its wire format.
+  // Office files are left for the OpenAI path, the only one able to parse them.
+  // Done after the format detection above, so an inlined file can't trigger it.
+  ({ prompt, content } = await preprocessAttachedFiles({
+    prompt,
+    content,
+    includeFilesInContext: includePdfInContext,
+    provider: llm.provider,
+  }));
 
   // Use the thinking flag from the llm object (already computed by modelAccordingToProvider)
   const effectiveThinking = llm.thinking;

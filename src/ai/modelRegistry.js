@@ -286,6 +286,24 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-fable", "claude fable"],
   },
 
+  "claude-opus-5": {
+    id: "claude-opus-5",
+    name: "Claude Opus 5",
+    provider: "Anthropic",
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 5, output: 25 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: ["claude-5-opus", "claude opus", "claude opus 5"],
+  },
+
   "claude-opus-4-8": {
     id: "claude-opus-4-8",
     name: "Claude Opus 4.8",
@@ -301,7 +319,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
-    aliases: ["claude-4.8-opus", "claude opus", "claude opus 4.8"],
+    aliases: ["claude-4.8-opus", "claude opus 4.8"],
   },
 
   "claude-opus-4-6": {
@@ -396,26 +414,6 @@ export const MODEL_REGISTRY = {
     thinkingOnly: true,
     visibleByDefault: true,
     aliases: ["gemini-3-6-flash"],
-  },
-
-  "gemini-3.5-flash": {
-    id: "gemini-3.5-flash",
-    name: "Gemini 3.5 Flash",
-    provider: "Google",
-    contextLength: 1048576,
-    maxOutput: 65536,
-    pricing: { input: 1.5, output: 9 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-      videoInput: true,
-      audioInput: true,
-    },
-    thinkingOnly: true,
-    visibleByDefault: true,
-    aliases: ["gemini-3-5-flash"],
   },
 
   "gemini-3.5-flash-lite": {

@@ -297,9 +297,11 @@ const ContextSelectionPanel = ({
         <Tooltip
           content={
             <div>
-              Include PDF content from context
+              Include the content of files attached in the context
               <br />
-              (disable to skip PDF processing)
+              (PDF, .md, .txt, .csv, code files, and .docx/.pptx with OpenAI)
+              <br />
+              (disable to skip file processing)
             </div>
           }
           hoverOpenDelay={800}
@@ -307,7 +309,7 @@ const ContextSelectionPanel = ({
         >
           <Checkbox
             checked={includePdfInContext}
-            label="PDF"
+            label="Files"
             inline={true}
             onChange={() => setIncludePdfInContext((prev) => !prev)}
           />

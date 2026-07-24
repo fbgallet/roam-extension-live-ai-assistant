@@ -18,7 +18,7 @@ import {
 
 import { updateTokenCounter } from "./modelsInfo";
 import { createImageUsageObject } from "./utils/imageTokensCalculator";
-import { hasCapability } from "./modelRegistry";
+import { hasCapability, getModelByIdentifier } from "./modelRegistry";
 import { getModelConfig } from "../utils/modelConfigHelpers";
 
 // Storage for active image generation chat instances (Gemini)
@@ -33,12 +33,17 @@ import {
   videoEndTimeRegex,
   roamAudioRegex,
   urlRegex,
+  attachedFileRegex,
+  officeFileExtensions,
 } from "../utils/regex";
 import { AppToaster, displayThinkingToast } from "../components/Toaster";
 import {
   getFormatedPdfRole,
   getResolvedContentFromBlocks,
+  fetchAttachedFile,
+  fileNameFromUrl,
 } from "./dataExtraction";
+import { fileToBase64 } from "../utils/dataProcessing";
 import { getParentBlock } from "../utils/roamAPI";
 
 // Tunable thresholds for the Whisper silence guard (2) and hallucination filter (3).
@@ -1573,16 +1578,43 @@ export const addImagesUrlToMessages = async (
   return messages;
 };
 
+/**
+ * Thinking variants carry an internal "+thinking" suffix that no registry entry
+ * matches, so capability lookups have to be done on the base id.
+ * @param {string} model
+ * @returns {string}
+ */
+const baseModelId = (model) =>
+  model.replace(/\+thinking/i, "").replace(/ thinking$/i, "").trim();
+
+/**
+ * Whether a model accepts PDF documents as input. PDF support is tracked by the
+ * `fileInput` capability, which is NOT the same as image support (e.g. some
+ * vision models can't read documents), so it has to be checked on its own.
+ * @param {string} model
+ * @returns {boolean}
+ */
+export const isModelSupportingPdf = (model) => {
+  if (!model) return false;
+  const id = baseModelId(model);
+  // Registered models: the registry is authoritative.
+  if (getModelByIdentifier(id)) return hasCapability(id, "fileInput");
+  // Dynamic models (OpenRouter, Groq, custom endpoints) aren't in the registry:
+  // multimodal support is the best available proxy for document support.
+  return isModelSupportingImage(model);
+};
+
 export const isModelSupportingImage = (model) => {
   if (!model) return false;
+  const id = baseModelId(model);
 
   // First, check the registry for capability
-  if (hasCapability(model, "imageInput")) {
+  if (hasCapability(id, "imageInput")) {
     return true;
   }
 
   // Fallback for dynamic models (OpenRouter) not in registry
-  const modelLower = model.toLowerCase();
+  const modelLower = id.toLowerCase();
   if (openRouterModelsInfo.length) {
     const ormodel = openRouterModelsInfo.find(
       (m) => m.id.toLowerCase() === modelLower,
@@ -1599,8 +1631,8 @@ export const addPdfUrlToMessages = async (
   provider,
   useResponseApi = false,
 ) => {
-  // Determine if we should use Response API format
-  const isResponseApi = provider === "OpenAI" && useResponseApi;
+  // Determine if we should use Response API format (OpenAI and Grok share it)
+  const isResponseApi = useResponseApi;
 
   for (let i = 1; i < messages.length; i++) {
     pdfLinkRegex.lastIndex = 0;
@@ -1663,34 +1695,313 @@ export const addPdfUrlToMessages = async (
   return messages;
 };
 
+// Beyond this, an inlined file is truncated: a large .csv would otherwise eat
+// the whole context window before the user's own content is even added.
+const MAX_INLINED_FILE_CHARS = 100000;
+
+/**
+ * Parse one attachedFileRegex match into its file name, url and extension.
+ * `label` is only set by the alternative where the markdown label carries the
+ * file name; otherwise the name is derived from the url.
+ * @param {Array} match
+ * @returns {{name: string, url: string, ext: string, raw: string}}
+ */
+const parseAttachedFileMatch = (match) => {
+  const { label, url1, url2, url3 } = match.groups;
+  const url = url1 || url2 || url3;
+  const name = label || fileNameFromUrl(url, "document");
+  return {
+    name,
+    url,
+    ext: name.split(".").pop().toLowerCase(),
+    raw: match[0],
+  };
+};
+
+/**
+ * Replace an attached file link by the file's text content, so that any model —
+ * including text-only ones — can read it. Office documents can't be read this
+ * way: they are left to the provider that can parse them.
+ *
+ * @param {string} text
+ * @param {boolean} canReadOffice - the target provider parses Office documents
+ * @returns {Promise<{text: string, failed: string[], unsupported: string[]}>}
+ */
+export const inlineAttachedFiles = async (text, canReadOffice) => {
+  if (!text || typeof text !== "string")
+    return { text, failed: [], unsupported: [] };
+
+  attachedFileRegex.lastIndex = 0;
+  const matches = Array.from(text.matchAll(attachedFileRegex));
+  if (!matches.length) return { text, failed: [], unsupported: [] };
+
+  let result = text;
+  const failed = [];
+  const unsupported = [];
+  // A replacer function is required: the replacement is arbitrary file content,
+  // and a literal string would have its $&, $' … sequences expanded.
+  const replaceLink = (raw, replacement) =>
+    (result = result.replace(raw, () => replacement));
+
+  for (const match of matches) {
+    const file = parseAttachedFileMatch(match);
+
+    if (officeFileExtensions.includes(file.ext)) {
+      // Left in place for OpenAI, which attaches it as an input_file later.
+      // Every other provider gets an explicit note rather than a dead link.
+      if (!canReadOffice) {
+        unsupported.push(file.name);
+        replaceLink(
+          file.raw,
+          `[attached file "${file.name}" — this model can't read Office documents; only OpenAI models can]`,
+        );
+      }
+      continue;
+    }
+
+    try {
+      const blob = await fetchAttachedFile(file.url, file.name, "text/plain");
+      let content = await blob.text();
+      const truncated = content.length > MAX_INLINED_FILE_CHARS;
+      if (truncated) content = content.slice(0, MAX_INLINED_FILE_CHARS);
+      replaceLink(
+        file.raw,
+        `\n\n--- Content of the attached file "${file.name}"${
+          truncated ? " (truncated)" : ""
+        } ---\n${content}\n--- End of "${file.name}" ---\n\n`,
+      );
+    } catch (error) {
+      console.error(`Error while reading attached file ${file.url}:`, error);
+      failed.push(file.name);
+    }
+  }
+
+  return { text: result, failed, unsupported };
+};
+
+/**
+ * Resolve the files attached in the prompt and (optionally) in the context,
+ * before the request is dispatched to a provider. Plain-text files are inlined
+ * so that every provider can read them; Office files are only kept for the
+ * providers able to parse them.
+ *
+ * @param {Object} params
+ * @param {Array|string} params.prompt
+ * @param {string} params.content - the Roam context
+ * @param {boolean} params.includeFilesInContext - user toggle for context files
+ * @param {string} params.provider - llm.provider
+ * @returns {Promise<{prompt: Array|string, content: string}>}
+ */
+export const preprocessAttachedFiles = async ({
+  prompt,
+  content,
+  includeFilesInContext,
+  provider,
+}) => {
+  // OpenAI's Responses API is the only one that parses .docx/.pptx/.xlsx.
+  const canReadOffice = provider === "OpenAI";
+  const failed = [];
+  const unsupported = [];
+
+  const collect = (result) => {
+    failed.push(...result.failed);
+    unsupported.push(...result.unsupported);
+    return result.text;
+  };
+
+  let processedPrompt = prompt;
+  if (Array.isArray(prompt)) {
+    processedPrompt = [];
+    for (const msg of prompt) {
+      processedPrompt.push(
+        typeof msg?.content === "string"
+          ? {
+              ...msg,
+              content: collect(
+                await inlineAttachedFiles(msg.content, canReadOffice),
+              ),
+            }
+          : msg,
+      );
+    }
+  } else if (typeof prompt === "string") {
+    processedPrompt = collect(await inlineAttachedFiles(prompt, canReadOffice));
+  }
+
+  const processedContent = includeFilesInContext
+    ? collect(await inlineAttachedFiles(content, canReadOffice))
+    : content;
+
+  if (failed.length)
+    AppToaster.show({
+      message: `⚠️ Attached file(s) that could not be read and will be ignored: ${failed.join(
+        ", ",
+      )}. See the console for details.`,
+      timeout: 12000,
+    });
+  if (unsupported.length)
+    AppToaster.show({
+      message: `⚠️ Office document(s) ignored: ${unsupported.join(
+        ", ",
+      )}. Only OpenAI models can read .docx/.pptx/.xlsx — switch model, or export the file to PDF.`,
+      timeout: 12000,
+    });
+
+  return { prompt: processedPrompt, content: processedContent };
+};
+
+/**
+ * Attach Office documents (.docx, .pptx, .xlsx…) to an OpenAI Responses API
+ * input array, which extracts their text server-side.
+ *
+ * @param {Array} messages - Responses API input array
+ * @param {string} content - the Roam context, "" when context files are off
+ * @returns {Promise<Array>}
+ */
+export const addOfficeFilesToMessages = async (messages, content) => {
+  const attachTo = async (message) => {
+    // A previous step (PDFs, images) may already have turned the content into a
+    // parts array; the file links then live in its first text part.
+    const source =
+      typeof message.content === "string"
+        ? message.content
+        : message.content?.[0]?.text || "";
+    attachedFileRegex.lastIndex = 0;
+    const files = Array.from(source.matchAll(attachedFileRegex))
+      .map(parseAttachedFileMatch)
+      .filter((f) => officeFileExtensions.includes(f.ext));
+    if (!files.length) return;
+
+    if (typeof message.content === "string")
+      message.content = [{ type: "input_text", text: message.content }];
+
+    for (const file of files) {
+      try {
+        const blob = await fetchAttachedFile(file.url, file.name);
+        message.content.push({
+          type: "input_file",
+          filename: file.name,
+          file_data: await fileToBase64(blob),
+        });
+      } catch (error) {
+        console.error(`Error while attaching ${file.name}:`, error);
+        AppToaster.show({
+          message: `The file ${file.name} could not be attached: ${error.message}`,
+          timeout: 12000,
+        });
+      }
+    }
+  };
+
+  for (let i = 1; i < messages.length; i++) await attachTo(messages[i]);
+
+  if (content && typeof content === "string") {
+    attachedFileRegex.lastIndex = 0;
+    const contextFiles = Array.from(content.matchAll(attachedFileRegex))
+      .map(parseAttachedFileMatch)
+      .filter((f) => officeFileExtensions.includes(f.ext));
+    if (contextFiles.length) {
+      const contextMessage = {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `File(s) provided in the context: ${contextFiles
+              .map((f) => f.name)
+              .join(", ")}`,
+          },
+        ],
+      };
+      messages.splice(1, 0, contextMessage);
+      for (const file of contextFiles) {
+        try {
+          const blob = await fetchAttachedFile(file.url, file.name);
+          contextMessage.content.push({
+            type: "input_file",
+            filename: file.name,
+            file_data: await fileToBase64(blob),
+          });
+        } catch (error) {
+          console.error(`Error while attaching ${file.name}:`, error);
+          AppToaster.show({
+            message: `The file ${file.name} could not be attached: ${error.message}`,
+            timeout: 12000,
+          });
+        }
+      }
+    }
+  }
+
+  return messages;
+};
+
+/**
+ * A file uploaded to the Gemini Files API is PROCESSING for a while and can't
+ * be referenced before it turns ACTIVE, so poll until it settles.
+ * @param {Object} uploadedFile - the File returned by files.upload
+ * @param {number} timeoutMs
+ * @returns {Promise<Object>} the ACTIVE file
+ */
+const waitForActiveGeminiFile = async (uploadedFile, timeoutMs = 60000) => {
+  let file = uploadedFile;
+  const start = Date.now();
+  while (file?.state === "PROCESSING" && Date.now() - start < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    file = await googleLibrary.files.get({ name: file.name });
+  }
+  if (file?.state === "FAILED")
+    throw new Error(
+      file.error?.message || "Gemini failed to process the uploaded file",
+    );
+  if (file?.state === "PROCESSING")
+    throw new Error("Gemini is still processing the file (timed out)");
+  return file;
+};
+
+/**
+ * Attach every PDF found in `content` to a Gemini message.
+ *
+ * Roam-hosted PDFs are uploaded to the Files API and pushed as a fileData part;
+ * external ones can only be reached by Gemini itself, through the URL Context
+ * tool, so they are returned to the caller instead.
+ *
+ * @param {Array} messageParts - parts array to push the attachments onto
+ * @param {string} content
+ * @returns {Promise<{messageParts: Array, externalPdfUrls: string[],
+ *   attached: Array<{url: string, match: string}>, failedUrls: string[]}>}
+ */
 export const addPdfToGeminiMessage = async (messageParts, content) => {
   // Extract PDF URLs from the content
   pdfLinkRegex.lastIndex = 0;
   const matchingPdfInContext = Array.from(content.matchAll(pdfLinkRegex));
 
   const externalPdfUrls = [];
+  const attached = [];
+  const failedUrls = [];
 
   for (let i = 0; i < matchingPdfInContext.length; i++) {
+    const pdfUrl = matchingPdfInContext[i][1] || matchingPdfInContext[i][2];
     try {
-      const pdfUrl = matchingPdfInContext[i][1] || matchingPdfInContext[i][2];
-
       if (pdfUrl.includes("firebasestorage.googleapis.com")) {
         // Firebase-hosted PDFs need to be uploaded via Files API (after decryption via Roam API)
         const pdfBlob = await roamAlphaAPI.file.get({ url: pdfUrl });
 
-        const uploadedFile = await googleLibrary.files.upload({
-          file: pdfBlob,
-          config: {
-            mimeType: "application/pdf",
-          },
-        });
+        const uploadedFile = await waitForActiveGeminiFile(
+          await googleLibrary.files.upload({
+            file: pdfBlob,
+            config: {
+              mimeType: "application/pdf",
+            },
+          }),
+        );
 
         messageParts.push({
           fileData: {
             fileUri: uploadedFile.uri,
-            mimeType: uploadedFile.mimeType,
+            mimeType: uploadedFile.mimeType || "application/pdf",
           },
         });
+        attached.push({ url: pdfUrl, match: matchingPdfInContext[i][0] });
       } else {
         // External PDFs - use URL Context tool (Gemini fetches them directly)
         externalPdfUrls.push(pdfUrl);
@@ -1698,11 +2009,11 @@ export const addPdfToGeminiMessage = async (messageParts, content) => {
     } catch (error) {
       console.error(`Error processing PDF: ${error.message}`);
       console.error(error);
+      failedUrls.push(pdfUrl);
     }
   }
 
-  // Return both message parts and external PDF URLs
-  return { messageParts, externalPdfUrls };
+  return { messageParts, externalPdfUrls, attached, failedUrls };
 };
 
 export const addImagesToGeminiMessage = async (messageParts, content) => {

@@ -14,7 +14,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Flexible Layout**: Position as right/left/bottom panel or modal - preferences auto-saved
 - **Prompts & Styles**: Use built-in or custom prompts (#liveai/prompt), styles (#liveai/style) and roles (#liveai/role, used in Debate mode)
 - **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
-- Support images, .pdf (with most models) and even audio or video analysis (with Gemini models)
+- Support images, .pdf and text files like .md or .csv (with most models), .docx/.pptx (OpenAI models) and even audio or video analysis (with Gemini models)
 - **Slash Commands**: Type / to access quick commands (clear, close, change mode, save, switch model) or force-use any tool for a single turn
 - **Edit Messages**: Click to edit previous messages, rendered as Roam blocks
 
@@ -67,7 +67,7 @@ export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 #### **Multimodal features**
 - 🎤 **Voice**: Dictate notes and commands, Text-to-speech
 - 🌁 **Image**: analysis and generation
-- 📑 **Pdf**: extract or analyze documents
+- 📑 **Files**: extract or analyze .pdf, .md, .txt, .csv, code files (and .docx/.pptx with OpenAI models)
 - 🕸️ **Web search**: Ask AI to find up-to-date or precise informations on the web!
 - 📄 **Document generation**: Export to PDF, DOCX, PPTX
 
@@ -83,29 +83,30 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "33";
+export const WHATS_NEW_VERSION = "34";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v32 & v.33 (July 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.33 & v.34 (July 2026) 🎉
 
-#### **AI-powered tables** 
+#### **Attached files, not just PDFs**
+- Attach a \`.md\`, \`.txt\`, \`.csv\`, \`.json\` or code file in your prompt or context — its content is read and inserted in the request, so **any model can use it**, even local Ollama ones
+- \`.docx\`, \`.pptx\` and \`.xlsx\` work with **OpenAI models**; with other models a warning invites you to switch model or export to PDF
+- The \`PDF\` checkbox in the Context menu is now \`Files\` and covers every supported format
+- Fixed: **Gemini was ignoring a PDF from the context** at medium/high thinking level. PDF support also repaired for OpenRouter, Groq, DeepSeek, Grok, custom endpoints, and for Claude models with thinking enabled
+
+#### **AI-powered tables**
 - Click a Roam table's row/column handle (or Right-click its "+" add-row/add-col buttons) for new **Live AI: auto-complete** or update options
 - Fill only the empty or \`[bracketed]\` cells of a row/column, **update** filled cells, or **generate** whole new rows & columns — cells stream in one by one
 - Full control: pick the model, thinking effort & style, and add context (sidebar, current page, [[pages]], or inline notes written after \`{{[[table]]}}\`)
-
-#### **Better voice transcription**
-- Now works with Gemini (Google) and Grok (xAI) too — not just OpenAI Whisper
-- Choose your transcription model right from the Models menu
-- More reliable: silent or unclear recordings no longer turn into made-up text, and pausing/resuming a recording no longer loses audio
 
 #### **More control over "thinking" models**
 - Turn reasoning on or off per conversation — and set your preferred default for each model
 - Works with more models now, including your own custom, OpenRouter and Ollama models
 - GPT 5.6: new "xhigh" and "max" effort; turning thinking off keeps tools working
 - The chat now remembers your thinking on/off (per model) and Chat/Agent mode
+- Fixed: the chosen reasoning effort was silently dropped in the chat panel
 
 #### **New models**
-- OpenAI GPT 5.6 Sol, Terra & Luna, Claude Sonnet 5, Grok 4.5
-- New image model: Nano Banana 2 Lite — faster, cheaper, and supports every aspect ratio
+- Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 

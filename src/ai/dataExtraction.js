@@ -1329,24 +1329,112 @@ export const concatAdditionalPrompt = (prompt, additionalPrompt) => {
     : additionalPrompt;
 };
 
+/**
+ * Best-effort file name for an attachment url.
+ * @param {string} url
+ * @param {string} fallback - name used when the url carries none
+ * @returns {string}
+ */
+export const fileNameFromUrl = (url, fallback = "document") => {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname).split("/").pop();
+    // Encrypted graphs suffix the stored file with .enc
+    return name ? name.replace(/\.enc$/i, "") : fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
+
+const pdfFileNameFromUrl = (url) => {
+  const name = fileNameFromUrl(url, "document.pdf");
+  return name.toLowerCase().endsWith(".pdf") ? name : "document.pdf";
+};
+
+/**
+ * Download an attached file as a File object. Roam-hosted files go through
+ * Roam's own API, which transparently decrypts them in encrypted graphs;
+ * anything else is a plain fetch (subject to the remote server's CORS policy).
+ * @param {string} url
+ * @param {string} [filename] - name to give the File when fetched directly
+ * @param {string} [mimeType]
+ * @returns {Promise<File|Blob>}
+ */
+export const fetchAttachedFile = async (
+  url,
+  filename,
+  mimeType = "application/octet-stream"
+) => {
+  if (url.includes("firebasestorage.googleapis.com"))
+    return await roamAlphaAPI.file.get({ url });
+  const response = await fetch(url);
+  if (!response.ok)
+    throw new Error(`HTTP ${response.status} while fetching ${url}`);
+  const blob = await response.blob();
+  return new File([blob], filename || fileNameFromUrl(url), { type: mimeType });
+};
+
+/**
+ * Build the provider-specific message part carrying a PDF.
+ *
+ * Three wire formats are involved:
+ *  - Anthropic: {type:"document"} with a url or base64 source,
+ *  - OpenAI/Grok Responses API: {type:"input_file"} with file_url or file_data,
+ *  - OpenAI-compatible /chat/completions (OpenRouter, Groq, DeepSeek, custom
+ *    endpoints): {type:"file"} whose file_data MUST be a base64 data: URL, so
+ *    the PDF is always downloaded first for those.
+ *
+ * @param {string} externalUrl - PDF url matched outside of a {{[[pdf]]}} component
+ * @param {string} firebaseUrl - PDF url matched inside a {{[[pdf]]}} component
+ * @param {string} provider - llm.provider ("Anthropic", "OpenAI", "openRouter"…)
+ * @param {boolean} useResponseApi - request goes to the Responses API
+ * @returns {Promise<Object>} a message part (a plain text part if the PDF
+ *   couldn't be downloaded, so the failure is visible instead of silent)
+ */
 export const getFormatedPdfRole = async (
   externalUrl,
   firebaseUrl,
   provider,
   useResponseApi = false
 ) => {
-  // pdf in encrypted graphs have to be decrypted and sent as file to API
+  const url = externalUrl || firebaseUrl;
+  const format =
+    provider === "Anthropic"
+      ? "anthropic"
+      : useResponseApi
+        ? "responses"
+        : "chat";
+
+  // Inline base64 is required by /chat/completions providers, and by encrypted
+  // graphs whose files no remote API can fetch by url.
+  const needsInlineData =
+    format === "chat" || (firebaseUrl && firebaseUrl.includes(".pdf.enc?"));
+
   let file, pdfData64;
-  if (firebaseUrl && firebaseUrl.includes(".pdf.enc?")) {
-    file = await roamAlphaAPI.file.get({ url: firebaseUrl });
-    pdfData64 = await fileToBase64(file);
+  if (needsInlineData) {
+    try {
+      file = await fetchAttachedFile(
+        url,
+        pdfFileNameFromUrl(url),
+        "application/pdf"
+      );
+      pdfData64 = await fileToBase64(file);
+    } catch (error) {
+      console.error(`Error while attaching PDF ${url}:`, error);
+      AppToaster.show({
+        message: `The PDF ${pdfFileNameFromUrl(
+          url
+        )} could not be attached to the request: ${error.message}`,
+        timeout: 12000,
+      });
+      return {
+        type: useResponseApi ? "input_text" : "text",
+        text: `[PDF that could not be loaded: ${url}]`,
+      };
+    }
   }
 
-  console.log("provider :>> ", provider);
-
-  let pdfRole;
-  if (provider === "Anthropic") {
-    pdfRole = {
+  if (format === "anthropic")
+    return {
       type: "document",
       source: file
         ? {
@@ -1354,43 +1442,19 @@ export const getFormatedPdfRole = async (
             media_type: "application/pdf",
             data: pdfData64.split(",", 2)[1],
           }
-        : {
-            type: "url",
-            url: externalUrl || firebaseUrl,
-          },
+        : { type: "url", url },
     };
-  } else if (provider === "openRouter") {
-    pdfRole = {
-      type: "file",
-      file: {
-        filename: file?.name || "document.pdf",
-        file_data: file ? pdfData64 : externalUrl || firebaseUrl,
-      },
-    };
-  } else if (provider === "OpenAI" && useResponseApi) {
-    // OpenAI Response API format
-    pdfRole = file
-      ? {
-          type: "input_file",
-          filename: file.name,
-          file_data: pdfData64,
-        }
-      : {
-          type: "input_file",
-          file_url: externalUrl || firebaseUrl,
-        };
-  } else {
-    // Legacy OpenAI Chat API format (or default)
-    pdfRole = file
-      ? {
-          type: "input_file",
-          filename: file.name,
-          file_data: pdfData64,
-        }
-      : {
-          type: "input_file",
-          file_url: externalUrl || firebaseUrl,
-        };
-  }
-  return pdfRole;
+
+  if (format === "responses")
+    return file
+      ? { type: "input_file", filename: file.name, file_data: pdfData64 }
+      : { type: "input_file", file_url: url };
+
+  return {
+    type: "file",
+    file: {
+      filename: file?.name || pdfFileNameFromUrl(url),
+      file_data: pdfData64,
+    },
+  };
 };
