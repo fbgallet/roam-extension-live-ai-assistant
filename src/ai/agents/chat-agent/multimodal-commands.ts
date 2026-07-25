@@ -14,6 +14,8 @@ import {
   imageGenerationChats,
   transcribeAudioFromBlock,
   addVideosToGeminiMessage,
+  isModelSupportingPdf,
+  findAttachedFiles,
 } from "../../multimodalAI";
 import {
   buildImageGenerationPrompt,
@@ -44,7 +46,9 @@ import {
   roamVideoRegex,
   youtubeRegex,
   pdfLinkRegex,
+  officeFileExtensions,
 } from "../../../utils/regex";
+import { modelAccordingToProvider } from "../../aiAPIsHub";
 import { aiCompletion } from "../../responseInsertion";
 import { buildResultsContext } from "./chat-agent-prompts";
 import { AppToaster } from "../../../components/Toaster";
@@ -763,12 +767,14 @@ export function hasPdfContent(
   // Check if user prompt contains PDF in Roam format: {{[[pdf]]: url}} or direct PDF URL
   pdfLinkRegex.lastIndex = 0;
   const pdfInPrompt = pdfLinkRegex.test(userPrompt);
-  if (pdfInPrompt) {
+  if (pdfInPrompt || hasOfficeLink(userPrompt)) {
     return true;
   }
 
   // Check if user mentions "pdf" in their prompt (suggesting they want to analyze PDF in context)
-  const mentionsPdf = /\b(pdf|document|paper)\b/i.test(userPrompt);
+  const mentionsPdf = /\b(pdf|document|paper|docx|pptx|xlsx|slides?)\b/i.test(
+    userPrompt,
+  );
 
   // Check if resultsContext contains PDF files
   // When alwaysExtractPdf is enabled, check context even without explicit mention
@@ -782,13 +788,25 @@ export function hasPdfContent(
 
       // Check for PDF in Roam format or direct URLs
       pdfLinkRegex.lastIndex = 0;
-      if (pdfLinkRegex.test(content)) {
+      if (pdfLinkRegex.test(content) || hasOfficeLink(content)) {
         return true;
       }
     }
   }
 
   return false;
+}
+
+/** All Office document links (.docx, .pptx, .xlsx…) found in a text, as written */
+function extractOfficeLinks(text: string): string[] {
+  return findAttachedFiles(text)
+    .filter((file) => officeFileExtensions.includes(file.ext))
+    .map((file) => file.raw);
+}
+
+/** Whether a text carries a link to an Office document */
+function hasOfficeLink(text: string): boolean {
+  return extractOfficeLinks(text).length > 0;
 }
 
 /**
@@ -844,10 +862,14 @@ function extractPdfUrls(
 }
 
 /**
- * Handle PDF analysis request (requires Gemini model)
+ * Handle PDF analysis request.
+ *
+ * Works with every model declaring file input (OpenAI, Anthropic, Google,
+ * OpenRouter…): the request goes through aiCompletion, which attaches the PDF
+ * in the format each provider expects.
  *
  * @param originalUserPrompt - The user's original text prompt
- * @param modelId - The model ID from state
+ * @param modelId - The model identifier from state (provider prefix included)
  * @param resultsContext - Results context containing PDF files
  * @param currentMessages - Current message history
  * @returns Result with updated messages
@@ -859,83 +881,96 @@ export async function handlePdfAnalysisRequest(
   currentMessages: any[],
   includePdfOverride?: boolean,
 ): Promise<MultimodalCommandResult & { isAnalysisOnly?: boolean }> {
-  // Check if Gemini model is being used (required for PDF)
-  if (!modelId.toLowerCase().includes("gemini")) {
-    return {
-      messages: [
-        ...currentMessages,
-        new AIMessage(
-          "⚠️ PDF analysis requires a Gemini model. Please switch to a Gemini model to analyze PDF content.",
-        ),
-      ],
-    };
-  }
-
-  // Check if Google library is available
-  if (!googleLibrary) {
-    return {
-      messages: [
-        ...currentMessages,
-        new AIMessage(
-          "⚠️ PDF analysis requires Google API key. Please configure your Google API key in settings.",
-        ),
-      ],
-    };
-  }
-
   // Extract PDF URLs from prompt and context
   const pdfUrls = extractPdfUrls(
     originalUserPrompt,
     resultsContext,
     includePdfOverride,
   );
+  // Office documents travel as links; only OpenAI models can parse them
+  const includeContextFiles =
+    includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
+  const officeLinks = [
+    ...extractOfficeLinks(originalUserPrompt),
+    ...(includeContextFiles
+      ? (resultsContext || []).flatMap((result: any) =>
+          extractOfficeLinks(result.content || result.text || ""),
+        )
+      : []),
+  ];
 
-  if (pdfUrls.length === 0) {
-    // No PDF found - return without modification
+  if (pdfUrls.length === 0 && officeLinks.length === 0) {
+    // No document found - return without modification
     return { messages: currentMessages };
   }
 
-  // Remove PDF URLs from prompt to check if user has additional instructions
+  if (pdfUrls.length && !isModelSupportingPdf(modelId)) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          `⚠️ ${modelId} can't read PDF documents. Please switch to a model supporting file input (most OpenAI, Anthropic, Google or OpenRouter models).`,
+        ),
+      ],
+    };
+  }
+  if (
+    officeLinks.length &&
+    modelAccordingToProvider(modelId)?.provider !== "OpenAI"
+  ) {
+    return {
+      messages: [
+        ...currentMessages,
+        new AIMessage(
+          `⚠️ ${modelId} can't read Office documents (.docx, .pptx, .xlsx). Only OpenAI models can — switch model, or export your file to PDF.`,
+        ),
+      ],
+    };
+  }
+
+  // Remove document links from prompt to check if user has additional instructions
   let cleanedPrompt = originalUserPrompt;
   pdfLinkRegex.lastIndex = 0;
   cleanedPrompt = cleanedPrompt.replace(pdfLinkRegex, "").trim();
+  for (const link of extractOfficeLinks(cleanedPrompt))
+    cleanedPrompt = cleanedPrompt.replace(link, "").trim();
 
   // Check if user just wants analysis (no additional instructions)
   // If cleanedPrompt is empty or very short, they just want the default analysis
   const isAnalysisOnly = !cleanedPrompt || cleanedPrompt.length < 3;
 
-  // Build the prompt for Gemini
   const analysisPrompt = isAnalysisOnly
-    ? "Please analyze this PDF document. Provide a comprehensive summary including key points, main topics, and important information."
+    ? "Please analyze this document. Provide a comprehensive summary including key points, main topics, and important information."
     : cleanedPrompt;
 
-  // Build PDF content string (with Roam syntax for Firebase PDFs, plain URLs for external)
-  const pdfContent = pdfUrls
-    .map((url) => {
-      // Wrap in Roam syntax if not already
-      if (url.includes("firebasestorage.googleapis.com")) {
-        return `{{[[pdf]]: ${url}}}`;
-      } else {
-        // External PDFs can be plain URLs (URL Context tool will handle them)
-        return url;
-      }
-    })
-    .join("\n");
+  // Rebuild the document references (Roam syntax for Firebase PDFs, plain URLs
+  // for external ones, original markdown link for Office files)
+  const documentContent = [
+    ...pdfUrls.map((url) =>
+      url.includes("firebasestorage.googleapis.com")
+        ? `{{[[pdf]]: ${url}}}`
+        : url,
+    ),
+    ...officeLinks,
+  ].join("\n");
 
-  // Combine prompt with PDF content
-  const fullPrompt = `${pdfContent}\n\n${analysisPrompt}`;
+  // Combine prompt with document content
+  const fullPrompt = `${documentContent}\n\n${analysisPrompt}`;
 
   try {
-    // Call Gemini API with URL Context tool for external PDFs
-    const response = await googleLibrary.models.generateContent({
-      model: modelId,
-      contents: [{ text: fullPrompt }],
-      config: {
-        tools: [{ urlContext: {} }], // Enable URL Context for external PDFs
-      },
+    // aiCompletion resolves the provider and attaches the PDF the way that
+    // provider expects (Files API upload for Gemini, document block for Claude,
+    // input_file for OpenAI, encoded data for OpenRouter…).
+    const response = await aiCompletion({
+      instantModel: modelId,
+      prompt: [{ role: "user", content: fullPrompt }],
+      content: "",
+      responseFormat: "text",
+      targetUid: "chatResponse", // stream to the chat UI, not to Roam blocks
+      isButtonToInsert: false,
     });
 
-    const analysisText = response.text || "PDF analysis completed.";
+    const analysisText = response || "PDF analysis completed.";
 
     return {
       messages: [...currentMessages, new AIMessage(analysisText)],

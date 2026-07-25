@@ -101,7 +101,13 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
    - `{chat:skill:name}`: same as `{chat}`, but also force-enables a specific skill (defined in your graph with `#liveai/skill`). `name` is the skill name as written in your graph, or a block reference in `((uid))` format pointing to the skill block.
    - Multiple tools and skills can be combined with `+`: `{chat:skill:Research+tool:create_block+skill:Writing}`
    - Force-enabled tools/skills are **merged** with your currently enabled tools — they are additive and never remove tools you already have on. They are **not saved** to your preferences, so your normal tool setup is preserved after the chat session.
-4. AI model to query: exact model ID from OpenAI or Anthropic, or `claude-sonnet-3.5`, `claude-haiku-3.5` or `claude-haiku`, or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`. Default: default model defined in extension settings.
+4. AI model to query: exact model ID from any supported provider (OpenAI, Anthropic, Google, DeepSeek, Grok…), or a `-latest` alias (see below), or `openRouter`, `groq`, `ollama` for first model using these APIs, or the exact model ID after `openRouter/`, `groq/` or `ollama/`. Default: default model defined in extension settings.
+   - **`-latest` aliases**: each main model family has a stable alias always pointing to its most recent model supported by the extension. **Recommended in SmartBlocks**, so your templates don't have to be updated at each new model release:
+     - OpenAI: `gpt-sol-latest`, `gpt-terra-latest`, `gpt-luna-latest`
+     - Anthropic: `opus-latest`, `sonnet-latest`, `haiku-latest`, `fable-latest`
+     - Google: `gemini-pro-latest`, `gemini-flash-latest`, `gemini-lite-latest`
+     - xAI: `grok-latest`
+     - DeepSeek: `deepseek-pro-latest`, `deepseek-flash-latest`
 5. Levels within the linked references or DNP to include in the context: number, default fixed in settings.
 6. Insert or not ((uid)) of each block in the context: `true` or `false` or nb of levels to insert block refs from. Default: default defined in extension settings.
 

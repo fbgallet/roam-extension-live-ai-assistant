@@ -1578,14 +1578,25 @@ export const addImagesUrlToMessages = async (
   return messages;
 };
 
+// Provider prefixes carried by dynamic model identifiers. Listed explicitly
+// because an OpenRouter id is itself of the form "vendor/model": stripping the
+// first segment blindly would break the lookup.
+const providerPrefixRegex =
+  /^(?:openrouter|ollama|groq|custom)\/|^(?:anthropic|google|deepseek|grok)\/custom\//i;
+
 /**
- * Thinking variants carry an internal "+thinking" suffix that no registry entry
- * matches, so capability lookups have to be done on the base id.
+ * Capability lookups need the bare model id: identifiers can carry a provider
+ * prefix ("openRouter/…") and thinking variants an internal "+thinking" suffix,
+ * neither of which matches a registry entry.
  * @param {string} model
  * @returns {string}
  */
 const baseModelId = (model) =>
-  model.replace(/\+thinking/i, "").replace(/ thinking$/i, "").trim();
+  model
+    .replace(providerPrefixRegex, "")
+    .replace(/\+thinking/i, "")
+    .replace(/ thinking$/i, "")
+    .trim();
 
 /**
  * Whether a model accepts PDF documents as input. PDF support is tracked by the
@@ -1716,6 +1727,19 @@ const parseAttachedFileMatch = (match) => {
     ext: name.split(".").pop().toLowerCase(),
     raw: match[0],
   };
+};
+
+/**
+ * List every attached file referenced in a text.
+ * @param {string} text
+ * @returns {Array<{name: string, url: string, ext: string, raw: string}>}
+ */
+export const findAttachedFiles = (text) => {
+  if (!text || typeof text !== "string") return [];
+  attachedFileRegex.lastIndex = 0;
+  return Array.from(text.matchAll(attachedFileRegex)).map(
+    parseAttachedFileMatch,
+  );
 };
 
 /**

@@ -272,9 +272,9 @@ When the user provides video files or YouTube URLs (either directly in their mes
     systemPrompt += `\n\n## PDF Analysis
 
 When the user provides PDF files (either directly in their message or in the context):
-- PDF files are automatically analyzed using Gemini's multimodal capabilities
+- PDF files are automatically analyzed by the selected model, using its own document capabilities
 - The analysis will be returned directly to the user
-- **IMPORTANT**: PDF analysis requires a Gemini model - if a non-Gemini model is selected, the user will be notified to switch models
+- **IMPORTANT**: PDF analysis requires a model supporting file input (most OpenAI, Anthropic, Google and OpenRouter models) - if the selected model doesn't, the user will be notified to switch models
 
 **Supported PDF formats:**
 - Direct PDF URLs (http://example.com/document.pdf)

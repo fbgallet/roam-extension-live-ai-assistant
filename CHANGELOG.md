@@ -11,6 +11,7 @@
 **Updates**
 
 - New models support: Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
+- **New `-latest` model aliases**: each main model family now has a stable alias always pointing to its most recent supported model — `gpt-sol-latest`, `gpt-terra-latest`, `gpt-luna-latest`, `opus-latest`, `sonnet-latest`, `haiku-latest`, `fable-latest`, `gemini-pro-latest`, `gemini-flash-latest`, `gemini-lite-latest`, `grok-latest`, `deepseek-pro-latest`, `deepseek-flash-latest`. Use them as the model parameter in your SmartBlocks (`<%LIVEAIGEN%>`, `<%LIVEAITEMPLATE%>`…) so your templates don't need to be updated at each new model release.
 
 **Fixed**
 

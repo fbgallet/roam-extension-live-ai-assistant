@@ -41,13 +41,16 @@ export const officeFileExtensions = [
 // over a url that ends with a known extension, and a bare url. The two link
 // forms must come first so the whole link is consumed: matching only the url
 // inside would corrupt the markdown when the match is replaced.
+// The extension is followed by an optional query string, which MUST be part of
+// the match: a Roam file url carries its access token there, and truncating it
+// yields a 403.
 const anyFileExtension = [...textFileExtensions, ...officeFileExtensions].join(
   "|",
 );
 export const attachedFileRegex = new RegExp(
   `\\[(?<label>[^\\]\\n]*?\\.(?:${anyFileExtension}))\\]\\((?<url1>https?:[^\\s)]+)\\)` +
-    `|\\[[^\\]\\n]*\\]\\((?<url2>https?:[^\\s)\\]]+\\.(?:${anyFileExtension}))\\)` +
-    `|(?<url3>https?:[^\\s)\\]]+\\.(?:${anyFileExtension}))(?![\\w.])`,
+    `|\\[[^\\]\\n]*\\]\\((?<url2>https?:[^\\s)\\]]+\\.(?:${anyFileExtension})(?:\\?[^\\s)]*)?)\\)` +
+    `|(?<url3>https?:[^\\s)\\]]+\\.(?:${anyFileExtension})(?:\\?[^\\s)\\]]*)?)(?![\\w.])`,
   "gi",
 );
 export const urlRegex =

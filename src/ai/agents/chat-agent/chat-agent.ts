@@ -58,7 +58,8 @@ import {
   handleFileExportCommand,
 } from "./multimodal-commands";
 import { getContextFromQueries } from "../../queryContextExtractor";
-import { alwaysExtractQuery } from "../../..";
+import { alwaysExtractQuery, alwaysExtractPdf } from "../../..";
+import { inlineAttachedFiles } from "../../multimodalAI";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -176,6 +177,9 @@ let turnTokensUsage: TokensUsage;
 let initialTokensUsage: TokensUsage;
 let sys_msg: SystemMessage;
 let originalUserMessageForHistory: string;
+// Same message, but with the content of attached text files inlined. Set in
+// loadModel, consumed by assistant (which runs in a separate scope).
+let userMessageWithInlinedFiles: string;
 
 // Conversation summarization threshold
 const SUMMARIZATION_THRESHOLD = 25;
@@ -212,7 +216,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   );
 
   // Build results context
-  const resultsContext = state.resultsContext
+  let resultsContext = state.resultsContext
     ? buildResultsContext(state.resultsContext, state.resultsDescription)
     : undefined;
 
@@ -240,6 +244,28 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
 
   // Store original message for history tracking before modification
   originalUserMessageForHistory = lastMessage;
+
+  // Inline the content of attached text files (.md, .txt, .csv, code files…):
+  // it becomes plain text, so the current model can read it whatever its
+  // provider. Office documents are left untouched here and handled by the
+  // document analysis step below, PDFs by their own step.
+  // Only when the message is plain text: replacing a multimodal message would
+  // drop its image parts.
+  if (typeof lastMessageContent === "string") {
+    const inlinedPrompt = await inlineAttachedFiles(lastMessage, true);
+    if (inlinedPrompt.text !== lastMessage) {
+      lastMessage = inlinedPrompt.text;
+      state.messages.pop();
+      state.messages.push(new HumanMessage(lastMessage));
+    }
+  }
+  userMessageWithInlinedFiles = lastMessage;
+  // Context files follow the same toggle as PDFs
+  const includeContextFiles =
+    state.includePdf !== undefined ? state.includePdf : alwaysExtractPdf;
+  if (resultsContext && includeContextFiles) {
+    resultsContext = (await inlineAttachedFiles(resultsContext, true)).text;
+  }
 
   let isConversationContextToInclude = lastMessage || resultsContext;
   if (state.commandPrompt) {
@@ -571,12 +597,16 @@ const assistant = async (state: typeof ChatAgentState.State) => {
     }
   }
 
-  // Handle PDF analysis requests (automatic, not command-based, requires Gemini)
+  // Handle PDF analysis requests (automatic, not command-based). Supported by
+  // every model with file input, not only Gemini.
   // This directly returns the PDF analysis without passing to LLM
   if (hasPdfContent(originalUserMessageForHistory, state.resultsContext, state.includePdf)) {
     const pdfResult = await handlePdfAnalysisRequest(
-      originalUserMessageForHistory,
-      state.model.id,
+      // Not the original message: text files attached alongside the document
+      // have already been inlined into it and must not be lost
+      userMessageWithInlinedFiles || originalUserMessageForHistory,
+      // Prefixed id, so dynamic providers (OpenRouter, Groq…) resolve properly
+      (state.model.prefix || "") + state.model.id,
       state.resultsContext,
       state.messages,
       state.includePdf,

@@ -1364,8 +1364,18 @@ export const fetchAttachedFile = async (
   filename,
   mimeType = "application/octet-stream"
 ) => {
-  if (url.includes("firebasestorage.googleapis.com"))
-    return await roamAlphaAPI.file.get({ url });
+  if (url.includes("firebasestorage.googleapis.com")) {
+    try {
+      return await roamAlphaAPI.file.get({ url });
+    } catch (error) {
+      // Roam's API only knows the files of the current graph; a url pointing to
+      // another graph (or a plain shared link) still resolves over http.
+      console.warn(
+        `Roam file API could not return ${url}, falling back to a direct fetch:`,
+        error
+      );
+    }
+  }
   const response = await fetch(url);
   if (!response.ok)
     throw new Error(`HTTP ${response.status} while fetching ${url}`);
