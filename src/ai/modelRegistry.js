@@ -42,7 +42,7 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     thinkingDefault: true,
-    aliases: ["GPT 5.6 Sol", "gpt-5-6-sol"],
+    aliases: ["GPT 5.6 Sol", "gpt-5-6-sol", "gpt-sol-latest"],
   },
   "gpt-5.6-terra": {
     id: "gpt-5.6-terra",
@@ -59,7 +59,7 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     thinkingDefault: true,
-    aliases: ["GPT 5.6 Terra", "gpt-5-6-terra"],
+    aliases: ["GPT 5.6 Terra", "gpt-5-6-terra", "gpt-terra-latest"],
   },
   "gpt-5.6-luna": {
     id: "gpt-5.6-luna",
@@ -76,7 +76,7 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     thinkingDefault: true,
-    aliases: ["GPT 5.6 Luna", "gpt-5-6-luna"],
+    aliases: ["GPT 5.6 Luna", "gpt-5-6-luna", "gpt-luna-latest"],
   },
 
   "gpt-5.5": {
@@ -283,7 +283,7 @@ export const MODEL_REGISTRY = {
     thinkingDefault: true,
     thinkingOnly: true,
     visibleByDefault: true,
-    aliases: ["claude-fable", "claude fable"],
+    aliases: ["claude-fable", "claude fable", "fable-latest"],
   },
 
   "claude-opus-5": {
@@ -301,7 +301,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
-    aliases: ["claude-5-opus", "claude opus", "claude opus 5"],
+    aliases: ["claude-5-opus", "claude opus", "claude opus 5", "opus-latest"],
   },
 
   "claude-opus-4-8": {
@@ -355,7 +355,12 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
-    aliases: ["claude-sonnet", "claude-sonnet-5", "claude sonnet 5"],
+    aliases: [
+      "claude-sonnet",
+      "claude-sonnet-5",
+      "claude sonnet 5",
+      "sonnet-latest",
+    ],
   },
 
   "claude-haiku-4-5-20251001": {
@@ -371,7 +376,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     visibleByDefault: true,
-    aliases: ["claude-haiku-4.5", "claude haiku 4.5"],
+    aliases: ["claude-haiku-4.5", "claude haiku 4.5", "haiku-latest"],
   },
 
   // ==================== Google Models ====================
@@ -393,7 +398,7 @@ export const MODEL_REGISTRY = {
     thinkingDefault: true,
     thinkingOnly: true,
     visibleByDefault: true,
-    aliases: ["gemini-3.1-pro"],
+    aliases: ["gemini-3.1-pro", "gemini-pro-latest"],
   },
 
   "gemini-3.6-flash": {
@@ -413,7 +418,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingOnly: true,
     visibleByDefault: true,
-    aliases: ["gemini-3-6-flash"],
+    aliases: ["gemini-3-6-flash", "gemini-flash-latest"],
   },
 
   "gemini-3.5-flash-lite": {
@@ -433,7 +438,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingOnly: true,
     visibleByDefault: true,
-    aliases: ["gemini-3-5-flash-lite"],
+    aliases: ["gemini-3-5-flash-lite", "gemini-lite-latest"],
   },
 
   // Google Image Generation Models
@@ -532,7 +537,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: false,
     visibleByDefault: true,
-    aliases: ["deepseek-v4 pro", "deepseek v4 pro"],
+    aliases: ["deepseek-v4 pro", "deepseek v4 pro", "deepseek-pro-latest"],
   },
 
   "deepseek-v4-flash": {
@@ -549,38 +554,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: false,
     visibleByDefault: true,
-    aliases: ["deepseek v4 flash", "deepseek-v4"],
-  },
-
-  "deepseek-chat": {
-    id: "deepseek-chat",
-    name: "DeepSeek-V3.2",
-    provider: "DeepSeek",
-    contextLength: 128000,
-    pricing: { input: 0.28, output: 0.42 },
-    capabilities: {
-      imageInput: false,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["deepseek-v3.2", "deepseek v3.2", "deepseek-v3"],
-  },
-
-  "deepseek-reasoner": {
-    id: "deepseek-reasoner",
-    name: "DeepSeek-V3.2 Thinking",
-    provider: "DeepSeek",
-    contextLength: 128000,
-    pricing: { input: 0.28, output: 0.42 },
-    capabilities: {
-      thinking: true,
-      imageInput: false,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    thinkingOnly: true,
-    visibleByDefault: false,
-    aliases: ["deepseek-v3.2 thinking", "deepseek v3.2 thinking"],
+    aliases: ["deepseek v4 flash", "deepseek-v4", "deepseek-flash-latest"],
   },
 
   // ==================== Grok Models ====================
@@ -597,8 +571,13 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
+    // Grok 4.5 is reasoning-only: reasoning_effort "none" returns a 400
+    // ("This model does not support reasoning_effort value none"), so thinking
+    // can't be turned off — only its level tuned.
+    thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: true,
-    aliases: ["grok-4-5", "grok-4.5", "grok-4"],
+    aliases: ["grok-4-5", "grok-4.5", "grok-4", "grok-latest"],
   },
 
   "grok-4.3": {
@@ -614,6 +593,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     visibleByDefault: true,
+    thinkingOnly: true,
     aliases: ["grok-4-3"],
   },
 
@@ -910,9 +890,12 @@ export function isThinkingOnly(identifier) {
 /**
  * Check if model uses adaptive thinking (type: "adaptive" + effort parameter)
  * instead of legacy thinking (type: "enabled" + budget_tokens).
- * Claude Opus 4.6+ and Claude Fable/Mythos 5 use adaptive thinking.
+ * Claude Opus 4.6+, Opus 5 and Claude Fable/Mythos 5 use adaptive thinking.
  * For Fable/Mythos 5, adaptive is the ONLY supported mode — type: "enabled"
  * and type: "disabled" both return 400 from the API.
+ * On Opus 5, type: "enabled" returns 400 too, but type: "disabled" is accepted
+ * as long as effort stays at "high" or below (we omit output_config when
+ * thinking is off, so the API default of "high" applies).
  * @param {string} identifier - Model identifier
  * @returns {boolean}
  */
@@ -926,6 +909,7 @@ export function usesAdaptiveThinking(identifier) {
     model?.id === "claude-sonnet-4-6" ||
     model?.id === "claude-opus-4-7" ||
     model?.id === "claude-opus-4-8" ||
+    model?.id === "claude-opus-5" ||
     model?.id === "claude-sonnet-5" ||
     model?.id === "claude-fable-5" ||
     model?.id === "claude-mythos-5"
@@ -934,7 +918,8 @@ export function usesAdaptiveThinking(identifier) {
 
 /**
  * Check if a model rejects sampling parameters (temperature, top_p, top_k).
- * These return a 400 error on Claude Opus 4.7+, Sonnet 5, and Fable/Mythos 5.
+ * These return a 400 error on Claude Opus 4.7+, Opus 5, Sonnet 5, and
+ * Fable/Mythos 5.
  * NOTE: this is NOT the same set as usesAdaptiveThinking — Opus 4.6 and
  * Sonnet 4.6 use adaptive thinking but still accept a sampling parameter.
  * @param {string} identifier - Model identifier
@@ -948,6 +933,7 @@ export function rejectsSamplingParams(identifier) {
   return (
     model?.id === "claude-opus-4-7" ||
     model?.id === "claude-opus-4-8" ||
+    model?.id === "claude-opus-5" ||
     model?.id === "claude-sonnet-5" ||
     model?.id === "claude-fable-5" ||
     model?.id === "claude-mythos-5"
