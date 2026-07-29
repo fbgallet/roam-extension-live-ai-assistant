@@ -59,7 +59,10 @@ import {
 } from "./multimodal-commands";
 import { getContextFromQueries } from "../../queryContextExtractor";
 import { alwaysExtractQuery, alwaysExtractPdf } from "../../..";
-import { inlineAttachedFiles } from "../../multimodalAI";
+import {
+  inlineAttachedFiles,
+  createInliningSession,
+} from "../../multimodalAI";
 
 // Chat Agent State
 const ChatAgentState = Annotation.Root({
@@ -251,8 +254,15 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   // document analysis step below, PDFs by their own step.
   // Only when the message is plain text: replacing a multimodal message would
   // drop its image parts.
+  // One session for the whole turn, so a file present in both the message and
+  // the context is downloaded and sent once.
+  const inliningSession = createInliningSession();
   if (typeof lastMessageContent === "string") {
-    const inlinedPrompt = await inlineAttachedFiles(lastMessage, true);
+    const inlinedPrompt = await inlineAttachedFiles(
+      lastMessage,
+      true,
+      inliningSession,
+    );
     if (inlinedPrompt.text !== lastMessage) {
       lastMessage = inlinedPrompt.text;
       state.messages.pop();
@@ -264,7 +274,9 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   const includeContextFiles =
     state.includePdf !== undefined ? state.includePdf : alwaysExtractPdf;
   if (resultsContext && includeContextFiles) {
-    resultsContext = (await inlineAttachedFiles(resultsContext, true)).text;
+    resultsContext = (
+      await inlineAttachedFiles(resultsContext, true, inliningSession)
+    ).text;
   }
 
   let isConversationContextToInclude = lastMessage || resultsContext;

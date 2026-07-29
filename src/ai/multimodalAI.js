@@ -1709,18 +1709,32 @@ export const addPdfUrlToMessages = async (
 // Beyond this, an inlined file is truncated: a large .csv would otherwise eat
 // the whole context window before the user's own content is even added.
 const MAX_INLINED_FILE_CHARS = 100000;
+// ...and beyond this, ALL inlined files together are truncated, so that N
+// attachments can't cost N times the per-file budget.
+const MAX_INLINED_TOTAL_CHARS = 200000;
 
 /**
- * Parse one attachedFileRegex match into its file name, url and extension.
- * `label` is only set by the alternative where the markdown label carries the
- * file name; otherwise the name is derived from the url.
+ * Shared state for one request's worth of inlining: a url→name cache so the
+ * same file isn't downloaded twice when it appears in both the prompt and the
+ * context, and the remaining character budget.
+ * @returns {{seen: Map<string, string>, remaining: number}}
+ */
+export const createInliningSession = () => ({
+  seen: new Map(),
+  remaining: MAX_INLINED_TOTAL_CHARS,
+});
+
+/**
+ * Parse one attachedFileRegex match into its file name, url and extension. The
+ * name always comes from the url, never from a markdown label, which may
+ * disagree with what it points to.
  * @param {Array} match
  * @returns {{name: string, url: string, ext: string, raw: string}}
  */
 const parseAttachedFileMatch = (match) => {
-  const { label, url1, url2, url3 } = match.groups;
+  const { url1, url2, url3 } = match.groups;
   const url = url1 || url2 || url3;
-  const name = label || fileNameFromUrl(url, "document");
+  const name = fileNameFromUrl(url, "document");
   return {
     name,
     url,
@@ -1749,9 +1763,14 @@ export const findAttachedFiles = (text) => {
  *
  * @param {string} text
  * @param {boolean} canReadOffice - the target provider parses Office documents
+ * @param {Object} [session] - shared cache/budget, see createInliningSession
  * @returns {Promise<{text: string, failed: string[], unsupported: string[]}>}
  */
-export const inlineAttachedFiles = async (text, canReadOffice) => {
+export const inlineAttachedFiles = async (
+  text,
+  canReadOffice,
+  session = createInliningSession(),
+) => {
   if (!text || typeof text !== "string")
     return { text, failed: [], unsupported: [] };
 
@@ -1783,11 +1802,29 @@ export const inlineAttachedFiles = async (text, canReadOffice) => {
       continue;
     }
 
+    // Already inlined earlier in this request (same file in the prompt and in
+    // the context): point back to it instead of downloading and sending twice.
+    if (session.seen.has(file.url)) {
+      replaceLink(
+        file.raw,
+        `[content of the attached file "${session.seen.get(
+          file.url,
+        )}" is included above]`,
+      );
+      continue;
+    }
+
     try {
       const blob = await fetchAttachedFile(file.url, file.name, "text/plain");
       let content = await blob.text();
-      const truncated = content.length > MAX_INLINED_FILE_CHARS;
-      if (truncated) content = content.slice(0, MAX_INLINED_FILE_CHARS);
+      const budget = Math.max(
+        0,
+        Math.min(MAX_INLINED_FILE_CHARS, session.remaining),
+      );
+      const truncated = content.length > budget;
+      if (truncated) content = content.slice(0, budget);
+      session.remaining -= content.length;
+      session.seen.set(file.url, file.name);
       replaceLink(
         file.raw,
         `\n\n--- Content of the attached file "${file.name}"${
@@ -1826,6 +1863,9 @@ export const preprocessAttachedFiles = async ({
   const canReadOffice = provider === "OpenAI";
   const failed = [];
   const unsupported = [];
+  // One session for the whole request: a file referenced in both the prompt and
+  // the context is downloaded and sent once.
+  const session = createInliningSession();
 
   const collect = (result) => {
     failed.push(...result.failed);
@@ -1842,18 +1882,24 @@ export const preprocessAttachedFiles = async ({
           ? {
               ...msg,
               content: collect(
-                await inlineAttachedFiles(msg.content, canReadOffice),
+                await inlineAttachedFiles(
+                  msg.content,
+                  canReadOffice,
+                  session,
+                ),
               ),
             }
           : msg,
       );
     }
   } else if (typeof prompt === "string") {
-    processedPrompt = collect(await inlineAttachedFiles(prompt, canReadOffice));
+    processedPrompt = collect(
+      await inlineAttachedFiles(prompt, canReadOffice, session),
+    );
   }
 
   const processedContent = includeFilesInContext
-    ? collect(await inlineAttachedFiles(content, canReadOffice))
+    ? collect(await inlineAttachedFiles(content, canReadOffice, session))
     : content;
 
   if (failed.length)

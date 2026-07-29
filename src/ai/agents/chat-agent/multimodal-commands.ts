@@ -890,8 +890,9 @@ export async function handlePdfAnalysisRequest(
   // Office documents travel as links; only OpenAI models can parse them
   const includeContextFiles =
     includePdfOverride !== undefined ? includePdfOverride : alwaysExtractPdf;
-  const officeLinks = [
-    ...extractOfficeLinks(originalUserPrompt),
+  const officeLinksInPrompt = extractOfficeLinks(originalUserPrompt);
+  let officeLinks = [
+    ...officeLinksInPrompt,
     ...(includeContextFiles
       ? (resultsContext || []).flatMap((result: any) =>
           extractOfficeLinks(result.content || result.text || ""),
@@ -899,8 +900,18 @@ export async function handlePdfAnalysisRequest(
       : []),
   ];
 
+  if (officeLinks.length && modelAccordingToProvider(modelId)?.provider !== "OpenAI") {
+    // Warn without hijacking the turn: a stray .docx sitting on the page must
+    // not replace the answer to a question that has nothing to do with it.
+    AppToaster.show({
+      message: `⚠️ ${modelId} can't read Office documents (.docx, .pptx, .xlsx), they will be ignored. Only OpenAI models can — switch model, or export the file to PDF.`,
+      timeout: 12000,
+    });
+    officeLinks = [];
+  }
+
   if (pdfUrls.length === 0 && officeLinks.length === 0) {
-    // No document found - return without modification
+    // Nothing left to analyse: let the normal chat turn proceed
     return { messages: currentMessages };
   }
 
@@ -910,19 +921,6 @@ export async function handlePdfAnalysisRequest(
         ...currentMessages,
         new AIMessage(
           `⚠️ ${modelId} can't read PDF documents. Please switch to a model supporting file input (most OpenAI, Anthropic, Google or OpenRouter models).`,
-        ),
-      ],
-    };
-  }
-  if (
-    officeLinks.length &&
-    modelAccordingToProvider(modelId)?.provider !== "OpenAI"
-  ) {
-    return {
-      messages: [
-        ...currentMessages,
-        new AIMessage(
-          `⚠️ ${modelId} can't read Office documents (.docx, .pptx, .xlsx). Only OpenAI models can — switch model, or export your file to PDF.`,
         ),
       ],
     };

@@ -35,22 +35,39 @@ export const textFileExtensions = [
 export const officeFileExtensions = [
   "docx", "doc", "pptx", "ppt", "xlsx", "xls", "rtf", "odt", "odp", "ods",
 ];
-// Three shapes, in order: a markdown link whose label is the file name — what
-// Roam produces for an attachment, its url carrying a ?alt=media query and so
-// never ending with the extension —, a markdown link with an arbitrary label
-// over a url that ends with a known extension, and a bare url. The two link
-// forms must come first so the whole link is consumed: matching only the url
-// inside would corrupt the markdown when the match is replaced.
-// The extension is followed by an optional query string, which MUST be part of
-// the match: a Roam file url carries its access token there, and truncating it
-// yields a 403.
 const anyFileExtension = [...textFileExtensions, ...officeFileExtensions].join(
   "|",
 );
+// Formats that can't plausibly be a web page or a page asset, and so are safe
+// to recognize in a bare url on any host. Deliberately narrow: .php and .js
+// end served pages and scripts far more often than attachments.
+const unambiguousFileExtension = ["md", "markdown", "csv", "tsv", "json"].join(
+  "|",
+);
+
+// A url whose LAST PATH SEGMENT is a file name. Requiring a path segment is
+// what keeps ordinary links out: many of these extensions are also TLDs, so
+// allowing the extension right after the host would turn
+// https://en.wikipedia.org/wiki/Roam into an "org-mode file" whose url is
+// truncated to the domain. `.enc` covers encrypted graphs (which keep the real
+// name in the path), and the optional query string MUST be part of the match
+// because a Roam file url carries its access token there — truncate it and the
+// request 403s.
+const fileUrlTail = (extensions) =>
+  `/[^\\s)\\]/]*\\.(?:${extensions})(?![\\w])(?:\\.enc)?(?:\\?[^\\s)\\]]*)?`;
+
+// Three shapes. A markdown link, where the URL alone decides whether this is a
+// file (a label like [CHANGELOG.md] over a plain web page must not count); a
+// bare graph-hosted url, in any supported format; and a bare url on any host,
+// limited to the unambiguous formats above.
 export const attachedFileRegex = new RegExp(
-  `\\[(?<label>[^\\]\\n]*?\\.(?:${anyFileExtension}))\\]\\((?<url1>https?:[^\\s)]+)\\)` +
-    `|\\[[^\\]\\n]*\\]\\((?<url2>https?:[^\\s)\\]]+\\.(?:${anyFileExtension})(?:\\?[^\\s)]*)?)\\)` +
-    `|(?<url3>https?:[^\\s)\\]]+\\.(?:${anyFileExtension})(?:\\?[^\\s)\\]]*)?)(?![\\w.])`,
+  `\\[[^\\]\\n]*\\]\\((?<url1>https?://[^\\s)\\]]*${fileUrlTail(
+    anyFileExtension,
+  )})\\)` +
+    `|(?<url2>https?://firebasestorage\\.googleapis\\.com[^\\s)\\]]*${fileUrlTail(
+      anyFileExtension,
+    )})` +
+    `|(?<url3>https?://[^\\s)\\]]*${fileUrlTail(unambiguousFileExtension)})`,
   "gi",
 );
 export const urlRegex =
