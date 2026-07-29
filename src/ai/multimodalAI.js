@@ -1725,16 +1725,17 @@ export const createInliningSession = () => ({
 });
 
 /**
- * Parse one attachedFileRegex match into its file name, url and extension. The
- * name always comes from the url, never from a markdown label, which may
- * disagree with what it points to.
+ * Parse one attachedFileRegex match into its file name, url and extension.
+ * `label` is only set for a graph-hosted file, whose url may carry no extension
+ * at all; every other shape was matched *because* its url ends in a file name,
+ * so there the url is what names the file.
  * @param {Array} match
  * @returns {{name: string, url: string, ext: string, raw: string}}
  */
 const parseAttachedFileMatch = (match) => {
-  const { url1, url2, url3 } = match.groups;
-  const url = url1 || url2 || url3;
-  const name = fileNameFromUrl(url, "document");
+  const { label, url0, url1, url2, url3 } = match.groups;
+  const url = url0 || url1 || url2 || url3;
+  const name = label || fileNameFromUrl(url, "document");
   return {
     name,
     url,
@@ -1814,13 +1815,21 @@ export const inlineAttachedFiles = async (
       continue;
     }
 
+    // Budget spent: don't even download. A context made of several pages can
+    // hold many file links, and fetching them all only to discard the content
+    // would cost a round-trip each.
+    if (session.remaining <= 0) {
+      replaceLink(
+        file.raw,
+        `[attached file "${file.name}" not read: the limit on inlined file content is reached]`,
+      );
+      continue;
+    }
+
     try {
       const blob = await fetchAttachedFile(file.url, file.name, "text/plain");
       let content = await blob.text();
-      const budget = Math.max(
-        0,
-        Math.min(MAX_INLINED_FILE_CHARS, session.remaining),
-      );
+      const budget = Math.min(MAX_INLINED_FILE_CHARS, session.remaining);
       const truncated = content.length > budget;
       if (truncated) content = content.slice(0, budget);
       session.remaining -= content.length;

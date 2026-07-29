@@ -265,11 +265,11 @@ export const AdvancedOptionsMenu: React.FC<AdvancedOptionsMenuProps> = ({
 
           <MenuDivider />
 
-          {/* Include PDF */}
+          {/* Include the content of files attached in the context */}
           <div className="advanced-option-row">
             <Switch
               checked={options.includePdfEnabled}
-              label="Override PDF setting"
+              label="Override attached files setting"
               onChange={(e) =>
                 update({ includePdfEnabled: e.currentTarget.checked })
               }
@@ -280,7 +280,7 @@ export const AdvancedOptionsMenu: React.FC<AdvancedOptionsMenuProps> = ({
               <div style={{ paddingLeft: 8, paddingTop: 2 }}>
                 <Switch
                   checked={options.includePdf}
-                  label="Include PDF content"
+                  label="Read files from context (.pdf, .md, .csv…)"
                   onChange={(e) =>
                     update({ includePdf: e.currentTarget.checked })
                   }

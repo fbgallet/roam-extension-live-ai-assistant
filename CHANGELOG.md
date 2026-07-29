@@ -5,8 +5,9 @@
 - **Attached files as input**, in your prompt or in your context, in addition to `.pdf`:
   - **Plain-text formats** — `.md`, `.txt`, `.csv`, `.tsv`, `.json`, `.xml`, `.yaml`, `.org` and the most common code files — their content is read and inserted directly in the request, so **every model can use them**, whatever its provider: this includes local Ollama models and text-only models that don't support .pdf.
   - **Office documents** — `.docx`, `.pptx`, `.xlsx`, `.rtf`, `.odt`… — are sent to **OpenAI models**, currently the only ones able to parse them. With any other model, a clear warning invites you to switch model or to export your file to PDF, instead of letting the AI invent content from a file name it can't open.
-  - Files are recognized both as Roam attachments (`[my-notes.md](firebase url)`) and as direct web urls. Very large files are truncated (with an explicit mention) so they can't eat the whole context window.
-  - The `PDF` checkbox in the Context menu becomes `Files`, and the "Always extract PDF content" setting becomes "Always extract attached files content": both now cover every supported format.
+  - Files are recognized both as Roam attachments (`[my-notes.md](firebase url)`) and as direct web urls. Ordinary links are left alone: a file name is only recognized in the last segment of a url path, so a link like `https://en.wikipedia.org/wiki/Roam` is never mistaken for an org-mode file. In a bare external url, extensions that usually end a web page or a page asset (`.php`, `.js`, `.css`…) are ignored too — write them as `[name.js](url)` if you really mean the file.
+  - Reading a file is skipped, with a clear message, beyond a total volume of inlined content, so a context holding many attachments can't fill the context window nor trigger a download per link. The same file referenced in both your prompt and your context is downloaded and sent only once.
+  - The `PDF` checkbox in the Context menu becomes `Files`, and the "Always extract PDF content" setting becomes "Always extract attached files content": both now cover every supported format. In the Chat panel, the same choice is available per conversation in the "..." (advanced options) menu — and **files present in the context are only read if you enable it**, while a file you write yourself in your prompt is always read.
 
 **Updates**
 
@@ -19,6 +20,7 @@
 - A .pdf that failed to upload to Gemini was silently ignored: failures are now reported, and the extension waits for Google to finish processing the file. Gemini also warns you when it has spent its whole output budget on reasoning and returned an empty answer.
 - **.pdf support repaired for several providers**: Groq, DeepSeek, custom OpenAI-compatible endpoints, OpenRouter and Grok, each sending the file in a format their API doesn't accept.
 - With Claude models, a .pdf placed in the prompt disabled its own processing (its url was treated as a web page to fetch), and images and .pdf files were silently ignored when thinking mode was enabled.
+- In the Chat panel, a .pdf could only be read by a Gemini model — every other model answered that PDF analysis requires Gemini, although OpenAI, Anthropic and OpenRouter models read PDFs perfectly well. The chat now uses the capabilities of the selected model, and a Roam-hosted PDF is properly uploaded instead of being handed to the model as a url it can't open.
 
 ### v.33 (July 14th, 2026) AI table auto-complete & reasoning effort that actually works
 

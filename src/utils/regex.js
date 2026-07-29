@@ -38,12 +38,16 @@ export const officeFileExtensions = [
 const anyFileExtension = [...textFileExtensions, ...officeFileExtensions].join(
   "|",
 );
-// Formats that can't plausibly be a web page or a page asset, and so are safe
-// to recognize in a bare url on any host. Deliberately narrow: .php and .js
-// end served pages and scripts far more often than attachments.
-const unambiguousFileExtension = ["md", "markdown", "csv", "tsv", "json"].join(
-  "|",
-);
+// Extensions that also end served pages and page assets. Recognized only in an
+// explicit markdown link or on a graph-hosted url — in a bare external url they
+// are far more often a page than an attachment, and probing them earns a CORS
+// error on every request. Every other format is safe in a bare url: the
+// path-segment requirement below already rules out the extensions that double
+// as TLDs (.org, .sh, .rs, .md…), since a TLD can't end a path segment.
+const webAssetExtensions = ["php", "js", "jsx", "ts", "tsx", "css"];
+const bareUrlFileExtension = [...textFileExtensions, ...officeFileExtensions]
+  .filter((extension) => !webAssetExtensions.includes(extension))
+  .join("|");
 
 // A url whose LAST PATH SEGMENT is a file name. Requiring a path segment is
 // what keeps ordinary links out: many of these extensions are also TLDs, so
@@ -56,18 +60,27 @@ const unambiguousFileExtension = ["md", "markdown", "csv", "tsv", "json"].join(
 const fileUrlTail = (extensions) =>
   `/[^\\s)\\]/]*\\.(?:${extensions})(?![\\w])(?:\\.enc)?(?:\\?[^\\s)\\]]*)?`;
 
-// Three shapes. A markdown link, where the URL alone decides whether this is a
-// file (a label like [CHANGELOG.md] over a plain web page must not count); a
-// bare graph-hosted url, in any supported format; and a bare url on any host,
-// limited to the unambiguous formats above.
+const graphFileHost = `firebasestorage\\.googleapis\\.com`;
+
+// Four shapes:
+//  0. [name.ext](graph-hosted url) — Roam stores some attachments under a url
+//     that carries NO extension at all (…/o/imgs%2Fapp%2Fgraph%2FACUn9VIqwz),
+//     so for the graph's own files the markdown label is the only place the
+//     file name exists. Trusting it is safe here because the host is the
+//     graph's own storage; doing it for any host is what made a
+//     [CHANGELOG.md](github.com/user/repo) link look like a markdown file.
+//  1. [any label](url whose path ends in a file name) — the url decides.
+//  2. bare graph-hosted url, in any supported format.
+//  3. bare url on any host, for every format except the page/asset extensions.
 export const attachedFileRegex = new RegExp(
-  `\\[[^\\]\\n]*\\]\\((?<url1>https?://[^\\s)\\]]*${fileUrlTail(
-    anyFileExtension,
-  )})\\)` +
-    `|(?<url2>https?://firebasestorage\\.googleapis\\.com[^\\s)\\]]*${fileUrlTail(
+  `\\[(?<label>[^\\]\\n]*?\\.(?:${anyFileExtension}))\\]\\((?<url0>https?://${graphFileHost}[^\\s)]*)\\)` +
+    `|\\[[^\\]\\n]*\\]\\((?<url1>https?://[^\\s)\\]]*${fileUrlTail(
+      anyFileExtension,
+    )})\\)` +
+    `|(?<url2>https?://${graphFileHost}[^\\s)\\]]*${fileUrlTail(
       anyFileExtension,
     )})` +
-    `|(?<url3>https?://[^\\s)\\]]*${fileUrlTail(unambiguousFileExtension)})`,
+    `|(?<url3>https?://[^\\s)\\]]*${fileUrlTail(bareUrlFileExtension)})`,
   "gi",
 );
 export const urlRegex =
