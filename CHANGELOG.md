@@ -1,4 +1,4 @@
-### v.34 (July 26th, 2026) Attached files as input: Markdown, text & Office documents
+### v.34 (July 30th, 2026) Attached files as input: Markdown, text & Office documents
 
 **New features**
 
@@ -16,6 +16,8 @@
 
 **Fixed**
 
+- **OpenAI models with thinking enabled were ignoring all their instructions** — and, in the Chat panel, the whole conversation: every turn was answered as if it were the first. Their requests go through OpenAI's Responses API since reasoning effort was repaired (v.33), and the system prompt was silently dropped on that route.
+- In the Chat panel, an **attached file's content was kept in the conversation history** and resent at every following turn, quickly saturating the context window. An image in a message was stored unreadable, breaking follow-up questions about it.
 - **Gemini models were ignoring a .pdf provided in the context as soon as the thinking level was raised** (it only worked at "low"): the PDF was properly attached, but its url was also left in the context, so the more the model reasoned, the more likely it was to try to fetch it — which Google can't do — and to answer that no PDF was provided.
 - A .pdf that failed to upload to Gemini was silently ignored: failures are now reported, and the extension waits for Google to finish processing the file. Gemini also warns you when it has spent its whole output budget on reasoning and returned an empty answer.
 - **.pdf support repaired for several providers**: Groq, DeepSeek, custom OpenAI-compatible endpoints, OpenRouter and Grok, each sending the file in a format their API doesn't accept.

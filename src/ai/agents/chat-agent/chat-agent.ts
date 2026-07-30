@@ -183,6 +183,11 @@ let originalUserMessageForHistory: string;
 // Same message, but with the content of attached text files inlined. Set in
 // loadModel, consumed by assistant (which runs in a separate scope).
 let userMessageWithInlinedFiles: string;
+// What this turn contributes to conversationHistory: the user's message as
+// written (command instructions included, since they must persist across turns),
+// WITHOUT the inlined content of attached files. Set in loadModel, consumed by
+// finalize.
+let userMessageForHistory: string;
 
 // Conversation summarization threshold
 const SUMMARIZATION_THRESHOLD = 25;
@@ -280,6 +285,7 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
   }
 
   let isConversationContextToInclude = lastMessage || resultsContext;
+  userMessageForHistory = originalUserMessageForHistory;
   if (state.commandPrompt) {
     let completedLastMessage = buildCompleteCommandPrompt(
       state.commandPrompt,
@@ -288,6 +294,13 @@ const loadModel = async (state: typeof ChatAgentState.State) => {
     );
     state.messages.pop();
     state.messages.push(new HumanMessage(completedLastMessage));
+    // The same instructions, but wrapped around the message WITHOUT the inlined
+    // files: the command has to persist across turns, its attachments must not.
+    userMessageForHistory = buildCompleteCommandPrompt(
+      state.commandPrompt,
+      originalUserMessageForHistory,
+      !!resultsContext,
+    );
   }
 
   // Extract query results if alwaysExtractQuery is enabled
@@ -1252,12 +1265,15 @@ const finalize = async (state: typeof ChatAgentState.State) => {
   // Update conversation history
   const newHistory = [...(state.conversationHistory || [])];
 
-  // Add user message
-  const userMessage = state.messages.find(
-    (msg) => msg.getType?.() === "human" || msg._getType?.() === "human",
-  );
-  if (userMessage) {
-    newHistory.push(`\n<User>: ${userMessage.content}`);
+  // Add user message — from the value captured in loadModel, NOT from
+  // state.messages. That copy carries the inlined content of attached files (a
+  // whole .csv would then be replayed in the system prompt of every later turn,
+  // on top of the one already in the Available Context), and on a multimodal
+  // turn its `content` is an array, which the template below would stringify to
+  // "[object Object]" — losing the image markdown that the next turn needs to
+  // re-attach the images.
+  if (userMessageForHistory !== undefined) {
+    newHistory.push(`\n<User>: ${userMessageForHistory}`);
   }
 
   // Add assistant response

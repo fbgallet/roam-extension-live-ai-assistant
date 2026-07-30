@@ -90,7 +90,7 @@ The user can already see the raw content and metadata - your job is to provide I
   if (conversationContext) {
     systemPrompt += `## Conversation Context
 
-This section contains the history of your conversation with the user. Note that past task instructions shown here (marked with "[Built-in or custom instructions for this stored conversation turn]") are historical context - they applied to previous requests. Follow built-on or custom instructions that appear eventually below for the CURRENT request.
+This section contains the history of your conversation with the user. A past turn can embed the task instructions that were applied to it (a built-in command or one of the user's custom prompts, sometimes introduced by "Custom instructions:" and followed by "User message:"). Those instructions are historical context: they applied to THAT request only, and must NOT be applied again. Follow only the instructions given for the CURRENT request, which appear below.
 
 ${conversationContext}
 
