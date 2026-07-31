@@ -27,60 +27,53 @@ By default, logging of your inputs & outputs in OpenRouter's settings is enabled
 
 Pricing currently used in cost calculations in Live AI
 
-In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like gpt-5, o3, Claude Sonnet 4 Thinking, deepseek-v3 Thinking, etc.).
+In practice, regular use of generative models will cost only a few dozen cents per month or a few dollars if you process large quantities of data (you'll need to be more careful with reasoning models like GPT 5.6 Sol, Claude Opus 5, Gemini 3.1 Pro, Grok 4.5, etc., since the thinking tokens they produce are billed as output tokens).
 
 NB: Prices may have changed (generally decreased) since the last update of this document. Additionally, the price of cached input tokens is not shown here and is not included in the calculations made in Live AI. However, using the same prompt repeatedly utilizes the cache, which significantly lowers the cost of requests (for example, with OpenAI, cached inputs are half the price). The costs shown in Live AI are always the assumed maximum cost; in practice, you will pay less. For an accurate breakdown of your costs, check the usage and costs page of each AI provider.
 
-| **Model**                    | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
-| ---------------------------- | ------------------------- | -------------------------- |
-| **OpenAI**                   |                           |                            |
-| gpt-5-nano                   | $0.05                     | $0.40                      |
-| gpt-5-mini                   | $0.25                     | $2.00                      |
-| gpt-5                        | $1.25                     | $10.00                     |
-| gpt-4.1-mini                 | $0.40                     | $1.60                      |
-| gpt-4.1                      | $2.00                     | $8.00                      |
-| gpt-4o-mini-search-preview\* | $0.15                     | $0.60                      |
-| gpt-4o-search-preview\*      | $2.50                     | $10.00                     |
-| gpt-image-1\*\*              | text: $5, image: \*10     | $40.00                     |
-| o4-mini                      | $1.10                     | $4.40                      |
-| o3                           | $2.00                     | $8.00                      |
-| o3-pro                       | $20.00                    | $80.00                     |
-| **Anthropic**                |                           |                            |
-| claude-3-5-haiku-20241022    | $0.80                     | $4.00                      |
-| claude-haiku-4-5-20251001    | $1.00                     | $5.00                      |
-| claude-sonnet-4-5-20250929   | $3.00                     | $15.00                     |
-| claude-opus-4-1-20250805     | $15.00                    | $75.00                     |
-| **DeepSeek**                 |                           |                            |
-| DeepSeek-V3.2                | $0.28                     | $0.42                      |
-| **Grok**                     |                           |                            |
-| grok-2-1212                  | $2.00                     | $10.00                     |
-| grok-3-mini                  | $0.30                     | $0.50                      |
-| grok-3-mini-fast             | $0.60                     | $4.00                      |
-| grok-3 & grok-4              | $3.00                     | $15.00                     |
-| **Google (Gemini)**          |                           |                            |
-| gemini-2.5-flash-lite        | $0.10                     | $0.40                      |
-| gemini-2.5-flash             | $0.30                     | $2.50                      |
-| gemini-2.5-pro               | $1.25                     | $10.00                     |
-| gemini-2.5-flash-image\*\*\* | text/image: $0.30         | $0.039 per image           |
-| imagen-4.0-fast\*\*\*        | -                         | $0.02 per image            |
-| imagen-4.0-generate\*\*\*    | -                         | $0.04 per image            |
-| imagen-4.0-ultra\*\*\*       | -                         | $0.06 per image            |
+| **Model**                 | **Input** Price/1M Tokens | **Output** Price/1M Tokens |
+| ------------------------- | ------------------------- | -------------------------- |
+| **OpenAI**                |                           |                            |
+| gpt-5-nano                | $0.05                     | $0.40                      |
+| GPT 5.6 Luna              | $0.20                     | $1.20                      |
+| GPT 5.6 Terra             | $2.00                     | $12.00                     |
+| GPT 5.6 Sol               | $5.00                     | $30.00                     |
+| o4-mini                   | $1.10                     | $4.40                      |
+| o4-mini Deep Research     | $2.00                     | $8.00                      |
+| o3                        | $2.00                     | $8.00                      |
+| GPT Image 1 mini\*        | text: $2, image: $2.50    | $8.00                      |
+| GPT Image 1.5\*           | text: $5, image: $8       | $32.00                     |
+| GPT Image 2\*             | text: $5, image: $8       | $30.00                     |
+| **Anthropic**             |                           |                            |
+| claude-haiku-4-5-20251001 | $1.00                     | $5.00                      |
+| Claude Sonnet 5           | $3.00                     | $15.00                     |
+| Claude Opus 5             | $5.00                     | $25.00                     |
+| Claude Fable 5            | $10.00                    | $50.00                     |
+| **DeepSeek**              |                           |                            |
+| DeepSeek-V4 Flash         | $0.14                     | $0.28                      |
+| DeepSeek-V4 Pro           | $1.74                     | $3.48                      |
+| **Grok**                  |                           |                            |
+| grok-4.3                  | $1.50                     | $2.50                      |
+| grok-4.5                  | $2.00                     | $6.00                      |
+| grok-4.20 Multi-agent     | $2.00                     | $6.00                      |
+| Grok Imagine\*\*          | $0.002 per input image    | $0.02 per image            |
+| **Google (Gemini)**       |                           |                            |
+| Gemini 3.5 Flash Lite     | $0.30                     | $2.50                      |
+| Gemini 3.6 Flash          | $1.50                     | $7.50                      |
+| Gemini 3.1 Pro            | $2.00                     | $12.00                     |
+| Nano Banana 2 Lite\*\*\*  | text/image: $0.10         | $0.039 per image           |
+| Nano Banana 2\*\*\*       | text/image: $0.25         | $0.039 per image           |
+| Nano Banana\*\*\*         | text/image: $0.30         | $0.039 per image           |
+| Nano Banana Pro\*\*\*     | text: $2.00, image: $1.10 | $0.134 per image (1k/2k)   |
 
-(\*) additional pricing for OpenAI Web Search models **by 1k calls** (included as input tokens for each request in Live AI tokens counter):
+(\*) OpenAI image generation models bill the generated images as output tokens, so the price per image depends on its size and quality (a square 1024\*1024 image is the cheapest; portrait or landscape formats, and higher quality settings, cost more). Input images (when you edit or combine existing images) are billed at the "image" input rate shown above.
 
-- gpt-4o-mini (low / medium / high context size): 25$ / 27.5$ / 30$
-- gpt-4o default (low / medium / high context size): 30$ / 35$ / 50$
-
-(\*\*) pricing examples for 1 image generation in square format (1024\*1024) (portrait or landscape format are 50% more expensive) (not taking into account tokens for input images if you edit or combine them):
-
-- low quality: $0.011
-- medim: $0.042
-- high: $0.167
+(\*\*) **Grok Imagine**: $0.002 per input image (for editing) and $0.02 per generated image. Supports both image generation and editing.
 
 (\*\*\*) Google image generation models pricing:
 
-- **gemini-2.5-flash-image (nano banana)**: Charges $0.30 per 1M input tokens (text or image), and $0.039 per generated image. Supports both image generation and editing.
-- **Imagen-4.0 models**: Charge only per generated image (no input charges). Fast: $0.02/image, Standard: $0.04/image, Ultra: $0.06/image. Generation only (no editing).
+- **Nano Banana 2 (gemini-3.1-flash-image)**, **Nano Banana 2 Lite** and **Nano Banana (gemini-2.5-flash-image)**: charge per 1M input tokens (text or image), plus $0.039 per generated image. All of them support both image generation and editing.
+- **Nano Banana Pro (gemini-3-pro-image)**: $2 per 1M text input tokens, $1.10 per 1M image input tokens, $12 per 1M text output tokens, and $0.134 per generated image in 1k or 2k resolution ($0.24 per image in 4k).
 
 For a complete and up-to-date comparison of pricing and performance, see https://artificialanalysis.ai/models#pricing
 
@@ -104,12 +97,12 @@ To use Ollama in Roam, you have also to set OLLAMA_ORIGINS environment variable 
 
 - Close Ollama app (with Task manager).
 - Open the Control Panel and navigate to “Edit system environment variables.”
-- Choose to edit or create a new system environment variable named OLLAMA_ORIGINS and define it to `https://roamresearch.com`
+- Choose to edit or create a new system environment variable named OLLAMA_ORIGINS and define it to `https://roamresearch.com`
 - Apply the changes and close the control panel.
 - Run 'ollama serve' from a new terminal window to ensure it picks up the updated environment variables. If ollama serve return an error message, it probably means that you have to stop Ollama app running in the background (with Task manager).
 
 ### on Linux
 
-- Run `systemctl edit ollama.service` to open the service file in an editor.
-- In the `[Service]` section, add: `Environment="OLLAMA_ORIGINS=https://roamresearch.com"`
+- Run `systemctl edit ollama.service` to open the service file in an editor.
+- In the `[Service]` section, add: `Environment="OLLAMA_ORIGINS=https://roamresearch.com"`
 - Save your changes, then reload systemd and restart Ollama with: `systemctl daemon-reload` and `systemctl restart ollama` commands

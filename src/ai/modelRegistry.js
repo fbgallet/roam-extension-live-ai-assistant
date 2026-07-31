@@ -21,6 +21,12 @@
  *     which is merely the default state of a toggle the user can flip.
  * - thinkingIdSuffix: For models with separate IDs for reasoning/non-reasoning (e.g., Grok)
  * - modelType: Special type like "image-generation"
+ * - preferredDefault: If true, this model is the provider's recommended replacement
+ *     when the user's default model becomes unavailable (removed model, missing API
+ *     key). Without it, the fallback is simply the cheapest available model of the
+ *     provider. Use it for models that are cheap AND capable enough to be a good
+ *     all-purpose default. At most one per provider is expected; if several are
+ *     flagged, the cheapest flagged one wins.
  */
 
 // ==================== MODEL REGISTRY ====================
@@ -50,7 +56,7 @@ export const MODEL_REGISTRY = {
     provider: "OpenAI",
     contextLength: 1050000,
     maxOutput: 128000,
-    pricing: { input: 2.5, output: 15 },
+    pricing: { input: 2, output: 12 },
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -67,7 +73,7 @@ export const MODEL_REGISTRY = {
     provider: "OpenAI",
     contextLength: 1050000,
     maxOutput: 128000,
-    pricing: { input: 1, output: 6 },
+    pricing: { input: 0.2, output: 1.2 },
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -76,74 +82,8 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     thinkingDefault: true,
+    preferredDefault: true,
     aliases: ["GPT 5.6 Luna", "gpt-5-6-luna", "gpt-luna-latest"],
-  },
-
-  "gpt-5.5": {
-    id: "gpt-5.5",
-    name: "GPT 5.5",
-    provider: "OpenAI",
-    contextLength: 1050000,
-    maxOutput: 128000,
-    pricing: { input: 5, output: 30 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: true,
-    aliases: ["GPT 5.5", "gpt-5-5"],
-  },
-
-  "gpt-5.4": {
-    id: "gpt-5.4",
-    name: "GPT 5.4",
-    provider: "OpenAI",
-    contextLength: 1050000,
-    maxOutput: 128000,
-    pricing: { input: 2.5, output: 15 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["GPT 5.4", "gpt-5-4"],
-  },
-
-  "gpt-5.4-mini": {
-    id: "gpt-5.4-mini",
-    name: "GPT-5.4 mini",
-    provider: "OpenAI",
-    contextLength: 400000,
-    maxOutput: 128000,
-    pricing: { input: 0.75, output: 4.5 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["gpt5.4-mini", "gpt-5-4-mini"],
-  },
-
-  "gpt-5": {
-    id: "gpt-5",
-    name: "GPT-5",
-    provider: "OpenAI",
-    contextLength: 400000,
-    maxOutput: 32000,
-    pricing: { input: 1.25, output: 10 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      fileInput: true,
-    },
-    visibleByDefault: false,
-    aliases: ["gpt-5-chat-latest"],
   },
 
   "gpt-5-nano": {
@@ -304,24 +244,6 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-5-opus", "claude opus", "claude opus 5", "opus-latest"],
   },
 
-  "claude-opus-4-8": {
-    id: "claude-opus-4-8",
-    name: "Claude Opus 4.8",
-    provider: "Anthropic",
-    contextLength: 1000000,
-    maxOutput: 128000,
-    pricing: { input: 5, output: 25 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: true,
-    aliases: ["claude-4.8-opus", "claude opus 4.8"],
-  },
-
   "claude-opus-4-6": {
     id: "claude-opus-4-6",
     name: "Claude Opus 4.6",
@@ -355,6 +277,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
+    preferredDefault: true,
     aliases: [
       "claude-sonnet",
       "claude-sonnet-5",
@@ -418,6 +341,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingOnly: true,
     visibleByDefault: true,
+    preferredDefault: true,
     aliases: ["gemini-3-6-flash", "gemini-flash-latest"],
   },
 
@@ -763,6 +687,33 @@ export function getModelsByProvider(provider) {
   return Object.entries(MODEL_REGISTRY)
     .filter(([_, m]) => m.provider === provider)
     .map(([key, m]) => ({ ...m, registryKey: key }));
+}
+
+/**
+ * Candidate replacement models for a provider, best-first, to be used when the
+ * user's default model is no longer available. Models flagged `preferredDefault`
+ * come first (cheapest first if several), then all other chat models by ascending
+ * price. Image-generation models are excluded — they can never be a text default.
+ * Callers still have to keep only the entries actually available (API key present,
+ * model visible), since the registry knows nothing about the user's settings.
+ * @param {string} provider - Provider name
+ * @returns {Object[]} Array of model entries, best candidate first
+ */
+export function getDefaultModelCandidates(provider) {
+  const cost = (m) =>
+    typeof m.pricing?.input === "number"
+      ? m.pricing.input + (m.pricing.output || 0)
+      : Number.POSITIVE_INFINITY;
+
+  return getModelsByProvider(provider)
+    .filter(
+      (m) => !m.capabilities?.imageOutput && m.modelType !== "image-generation",
+    )
+    .sort(
+      (a, b) =>
+        (b.preferredDefault === true) - (a.preferredDefault === true) ||
+        cost(a) - cost(b),
+    );
 }
 
 /**

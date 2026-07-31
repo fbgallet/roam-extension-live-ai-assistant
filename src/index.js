@@ -36,7 +36,7 @@ import {
   registerOpenRouterModels,
   registerCustomModelThinking,
   getModelByIdentifier,
-  getModelsByProvider,
+  getDefaultModelCandidates,
 } from "./ai/modelRegistry";
 import {
   migrateModelConfig,
@@ -155,7 +155,82 @@ const modeMap = {
 
 export let extensionStorage;
 
-export function setDefaultModel(str = "gpt-5.1") {
+// Does the given provider have a usable API key (or, for dynamic providers,
+// user-declared models) right now?
+export function hasProviderApiKey(provider) {
+  switch (provider) {
+    case "OpenAI":
+      return !!OPENAI_API_KEY;
+    case "Anthropic":
+      return !!ANTHROPIC_API_KEY;
+    case "DeepSeek":
+      return !!DEEPSEEK_API_KEY;
+    case "Google":
+      return !!GOOGLE_API_KEY;
+    case "Grok":
+      return !!GROK_API_KEY;
+    case "OpenRouter":
+      return (
+        !!OPENROUTER_API_KEY ||
+        getModelConfig().customModels?.openrouter?.length > 0
+      );
+    case "Groq":
+      return !!GROQ_API_KEY || getModelConfig().customModels?.groq?.length > 0;
+    case "Ollama":
+      return getModelConfig().customModels?.ollama?.length > 0;
+    default:
+      return false;
+  }
+}
+
+// Prefix used to disambiguate models of dynamic providers in model identifiers.
+const getProviderPrefix = (provider) => {
+  switch (provider) {
+    case "OpenRouter":
+      return "openRouter/";
+    case "Groq":
+      return "groq/";
+    case "Ollama":
+      return "ollama/";
+    default:
+      return "";
+  }
+};
+
+// Canonical `availableModels` string for a registry entry — native providers key
+// on display name, dynamic ones on their raw API id.
+const toModelString = (entry) => {
+  const isDynamic = ["OpenRouter", "Groq", "Ollama"].includes(entry.provider);
+  return (
+    getProviderPrefix(entry.provider) + (isDynamic ? entry.id : entry.name)
+  );
+};
+
+/**
+ * Model to use as default when the user has none yet (fresh install) or when no
+ * model at all is available. OpenAI comes first — it's the most common setup —
+ * then the other providers in the user's order, keeping only those with an API
+ * key. Within a provider, the model flagged `preferredDefault` in the registry
+ * wins, otherwise its cheapest chat model. Promoting another model is thus a
+ * one-line change in modelRegistry.js.
+ */
+export function getInitialDefaultModel() {
+  const providers = [
+    "OpenAI",
+    ...getOrderedProviders().filter((p) => p !== "OpenAI"),
+  ];
+  for (const provider of providers) {
+    if (!hasProviderApiKey(provider)) continue;
+    const best = getDefaultModelCandidates(provider)[0];
+    if (best) return toModelString(best);
+  }
+  // No key set yet: still point to OpenAI's recommended model, so the setting
+  // is meaningful as soon as the user pastes an OpenAI key.
+  const openAiBest = getDefaultModelCandidates("OpenAI")[0];
+  return openAiBest ? toModelString(openAiBest) : "gpt-5.1";
+}
+
+export function setDefaultModel(str = getInitialDefaultModel()) {
   defaultModel = str;
   extensionStorage.set("defaultModel", str);
   chatRoles = getRolesFromString(
@@ -206,57 +281,14 @@ export function updateAvailableModels() {
     customOpenaiLibrary = initializeOpenAIAPI(OPENAI_API_KEY, customBaseURL);
   }
 
-  // Helper to get prefix for provider
-  const getPrefix = (provider) => {
-    switch (provider) {
-      case "OpenRouter":
-        return "openRouter/";
-      case "Groq":
-        return "groq/";
-      case "Ollama":
-        return "ollama/";
-      default:
-        return "";
-    }
-  };
-
-  // Helper to check if provider has API key
-  const hasApiKey = (provider) => {
-    switch (provider) {
-      case "OpenAI":
-        return !!OPENAI_API_KEY;
-      case "Anthropic":
-        return !!ANTHROPIC_API_KEY;
-      case "DeepSeek":
-        return !!DEEPSEEK_API_KEY;
-      case "Google":
-        return !!GOOGLE_API_KEY;
-      case "Grok":
-        return !!GROK_API_KEY;
-      case "OpenRouter":
-        return (
-          !!OPENROUTER_API_KEY ||
-          getModelConfig().customModels?.openrouter?.length > 0
-        );
-      case "Groq":
-        return (
-          !!GROQ_API_KEY || getModelConfig().customModels?.groq?.length > 0
-        );
-      case "Ollama":
-        return getModelConfig().customModels?.ollama?.length > 0;
-      default:
-        return false;
-    }
-  };
-
   // Use ordered providers and respect visibility settings like ModelsMenu
   const providers = getOrderedProviders();
 
   for (const provider of providers) {
-    if (!hasApiKey(provider)) continue;
+    if (!hasProviderApiKey(provider)) continue;
 
     const models = getProviderModels(provider);
-    const prefix = getPrefix(provider);
+    const prefix = getProviderPrefix(provider);
 
     // Filter by visibility (respects user settings from ModelConfigDialog)
     // Note: We don't filter out image generation models here - that's for display purposes only
@@ -270,23 +302,13 @@ export function updateAvailableModels() {
     return;
   }
   if (!availableModels.includes(defaultModel)) {
-    // Canonical availableModels string for a registry entry — mirrors how the
-    // list above is built (native providers key on display name, dynamic ones
-    // on their raw API id).
-    const toModelString = (entry) => {
-      const isDynamic = ["OpenRouter", "Groq", "Ollama"].includes(
-        entry.provider,
-      );
-      return getPrefix(entry.provider) + (isDynamic ? entry.id : entry.name);
-    };
-
     const savedEntry = getModelByIdentifier(defaultModel);
 
     // A model that still exists AND whose provider has an API key is USABLE as
     // the default even when it isn't in the visible list — the user may simply
     // have hidden it from the quick menu (hidden ≠ unusable). In that case we
     // never force a switch or show a notification.
-    if (savedEntry && hasApiKey(savedEntry.provider)) {
+    if (savedEntry && hasProviderApiKey(savedEntry.provider)) {
       // If the visible list carries the same model under a drifted identifier
       // (rename / alias / casing change between versions), quietly adopt that
       // canonical string. Otherwise keep the (possibly hidden) default as-is.
@@ -301,7 +323,8 @@ export function updateAvailableModels() {
       }
     } else {
       // Genuinely unavailable: the provider's API key is gone, or the model was
-      // removed from the registry. Switch to the CHEAPEST available (visible +
+      // removed from the registry. Switch to the provider's `preferredDefault`
+      // model if one is available, otherwise to the CHEAPEST available (visible +
       // keyed) non-image model of the same provider — not the flagship — then
       // notify the user. Capture the old value BEFORE setDefaultModel mutates
       // the module-level `defaultModel`, so the toast reports it correctly.
@@ -316,37 +339,33 @@ export function updateAvailableModels() {
         else provider = "OpenAI";
       }
 
-      const modelCost = (m) =>
-        typeof m.pricing?.input === "number"
-          ? m.pricing.input + (m.pricing.output || 0)
-          : Number.POSITIVE_INFINITY;
-
-      // Cheapest available chat model of a provider (image-generation models are
-      // excluded so they can never become the text default).
-      const cheapestOf = (prov) => {
-        const candidates = getModelsByProvider(prov)
-          .filter((m) => !m.capabilities?.imageOutput)
-          .map((m) => ({ str: toModelString(m), cost: modelCost(m) }))
-          .filter((c) => availableModels.includes(c.str));
-        if (!candidates.length) return undefined;
-        candidates.sort((a, b) => a.cost - b.cost);
-        return candidates[0].str;
-      };
+      // Best available replacement for a provider: its `preferredDefault` model
+      // when that one is available, otherwise the cheapest chat model
+      // (image-generation models are excluded so they can never become the text
+      // default). Ordering lives in the registry, so promoting another model only
+      // means moving the `preferredDefault` flag there.
+      const bestOf = (prov) =>
+        getDefaultModelCandidates(prov)
+          .map(toModelString)
+          .find((str) => availableModels.includes(str));
 
       const replacement =
-        cheapestOf(provider) ||
+        bestOf(provider) ||
         getOrderedProviders()
-          .map((p) => cheapestOf(p))
+          .map((p) => bestOf(p))
           .find(Boolean) ||
         availableModels[0];
 
       setDefaultModel(replacement);
 
       if (replacement && replacement !== previousDefault) {
-        const replacementName =
-          getModelByIdentifier(replacement)?.name || replacement;
+        const replacementEntry = getModelByIdentifier(replacement);
+        const replacementName = replacementEntry?.name || replacement;
+        const qualifier = replacementEntry?.preferredDefault
+          ? "the recommended default model"
+          : "the cheapest available model";
         AppToaster.show({
-          message: `Live AI – Your default model "${previousDefault}" is no longer available (its provider API key is missing, or the model was removed). Default switched to the cheapest available model, "${replacementName}".`,
+          message: `Live AI – Your default model "${previousDefault}" is no longer available (its provider API key is missing, or the model was removed). Default switched to ${qualifier}, "${replacementName}".`,
           timeout: 12000,
         });
       }
@@ -376,7 +395,9 @@ function getRolesFromString(str, model) {
     } else if (defaultModel === "first Groq model" && groqModels.length) {
       model = groqModels[0];
     } else {
-      model = defaultModel.includes("first") ? "gpt-5.1" : defaultModel;
+      model = defaultModel.includes("first")
+        ? getInitialDefaultModel()
+        : defaultModel;
     }
   }
   model = modelAccordingToProvider(model);
@@ -1370,7 +1391,9 @@ export default {
       await extensionAPI.settings.set("voiceInstructions", "");
     voiceInstructions = extensionAPI.settings.get("voiceInstructions");
     if (extensionAPI.settings.get("defaultModel") === null)
-      await extensionAPI.settings.set("defaultModel", "gpt-5.1");
+      // Fresh install: no stored default yet. Derive it from the registry
+      // (OpenAI's `preferredDefault` model, or another keyed provider's).
+      await extensionAPI.settings.set("defaultModel", getInitialDefaultModel());
     else if (
       extensionAPI.settings.get("defaultModel") === "gemini-3-pro-preview"
     )
