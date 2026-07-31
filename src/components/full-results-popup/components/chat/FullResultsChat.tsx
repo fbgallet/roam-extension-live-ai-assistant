@@ -13,10 +13,12 @@ import { performAdaptiveExpansion } from "../../../../ai/agents/search-agent/hel
 import {
   extensionStorage,
   defaultModel,
+  availableModels,
   defaultStyle,
   chatRoles,
   getInstantAssistantRole,
 } from "../../../..";
+import { getModelByIdentifier } from "../../../../ai/modelRegistry";
 import {
   getBlockContentByUid,
   getPageUidByPageName,
@@ -61,7 +63,10 @@ import {
   getCustomStyles,
 } from "../../../../ai/dataExtraction";
 import { loadResultsFromRoamContext } from "../../utils/roamContextLoader";
-import { getModelThinkingDefault } from "../../../../utils/modelConfigHelpers";
+import {
+  getModelThinkingDefault,
+  getModelConfig,
+} from "../../../../utils/modelConfigHelpers";
 import {
   createTemporaryEditBlock,
   extractContentFromBlock,
@@ -1426,18 +1431,35 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   const [lastSelectedResultIds, setLastSelectedResultIds] = useState<string[]>(
     [],
   ); // Track result selection changes
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
-    // Restore from persisted state if available, otherwise use initial or default
+  // Restore from persisted state if available, otherwise use initial or default.
+  // A model carried over from a previous session (in-memory `lastChatModel`, or
+  // the chat snapshot in localStorage) can be long gone — removed from the
+  // registry, custom model deleted, provider key withdrawn — so each candidate is
+  // checked before being adopted, instead of displaying (and calling) a dead model.
+  const initialModel = useMemo(() => {
+    const isUsable = (model?: string | null) => {
+      if (!model) return false;
+      if (availableModels.includes(model) || !!getModelByIdentifier(model))
+        return true;
+      // Hidden custom models are usable too — hidden only means "not in the
+      // quick menu", and they never appear in `availableModels`.
+      const bareId = model.replace(/^(openRouter|groq|ollama)\//, "");
+      return Object.values(getModelConfig().customModels || {})
+        .flat()
+        .some((m: any) => m?.id === bareId);
+    };
     return (
-      (window as any).lastChatModel ||
-      initialChatModel ||
-      loadAutoRestoreChat()?.selectedModel ||
-      defaultModel
+      [
+        (window as any).lastChatModel,
+        initialChatModel,
+        loadAutoRestoreChat()?.selectedModel,
+      ].find(isUsable) || defaultModel
     );
-  });
+  }, []);
+
+  const [selectedModel, setSelectedModel] = useState<string>(initialModel);
   const [modelTokensLimit, setModelTokensLimit] = useState<number>(
-    modelAccordingToProvider(initialChatModel || defaultModel).tokensLimit ||
-      128000,
+    modelAccordingToProvider(initialModel).tokensLimit || 128000,
   );
 
   // Thinking mode state — session-persistent per model (survives panel
