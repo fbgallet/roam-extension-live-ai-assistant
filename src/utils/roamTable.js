@@ -63,6 +63,36 @@ function getColumnChain(rowBlock) {
  * is { uid, content }. Returns null if the block can't be read.
  */
 export function getTableModel(tableBlockUid) {
+  // Roam Grid keeps enhanced native tables backed by these same block UIDs, but
+  // its public model is already normalized and includes cells that may be
+  // temporarily virtualized out of the DOM. Prefer that model when available;
+  // fall back to the native outline reader when Roam Grid is absent or the table
+  // has not opted in.
+  try {
+    const enhanced = window.roamGrid?.v1?.getTableModel?.(tableBlockUid);
+    if (enhanced?.rows?.length) {
+      const rows = enhanced.rows.map((row) =>
+        row.map((cell) => {
+          const raw = cell?.raw ?? "";
+          return {
+            uid: cell?.uid,
+            content: raw,
+            display: resolveReferences(raw),
+          };
+        })
+      );
+      return {
+        tableUid: tableBlockUid,
+        rows,
+        colCount:
+          enhanced.columnIds?.length ||
+          rows.reduce((max, row) => Math.max(max, row.length), 0),
+        roamGrid: true,
+      };
+    }
+  } catch (error) {
+    console.warn("Live AI table: Roam Grid adapter failed; using native blocks", error);
+  }
   const root = getTreeByUid(tableBlockUid)?.[0];
   if (!root) return null;
   const rowBlocks = sortByOrder(root.children);
