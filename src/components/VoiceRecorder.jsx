@@ -12,6 +12,8 @@ import {
   faRectangleList,
   faListUl,
   faHexagonNodesBolt,
+  faTowerBroadcast,
+  faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { closeStream, getStream, newMediaRecorder } from "../audio/audio.js";
@@ -43,16 +45,22 @@ import {
   extensionStorage,
   uidsInPrompt,
   defaultModel,
+  isOutlinerIconDisplayed,
 } from "../index.js";
 import MicRecorder from "../audio/mic-recorder.js";
 import {
   displaySpinner,
   displayAskGraphModeDialog,
   highlightHtmlElt,
+  insertParagraphForStream,
   removeSpinner,
   setAsOutline,
   toggleComponentVisibility,
 } from "../utils/domElts.js";
+import {
+  isLiveTranscriptionAvailable,
+  liveTranscription,
+} from "../ai/liveTranscription.js";
 
 import {
   getConversationArray,
@@ -93,10 +101,19 @@ function VoiceRecorder({
       !transcribeOnly && !completionOnly && isTranslateIconDisplayed,
     completionIcon: !translateOnly && !transcribeOnly,
     askYourGraphIcon: !translateOnly && !completionOnly,
+    // Hidden by default: the Outliner Agent stays reachable with the 'O' key
+    // and from the Live AI context menu.
+    outlinerIcon:
+      !translateOnly &&
+      !transcribeOnly &&
+      (isOutlinerIconDisplayed || outlineState),
   });
   const [time, setTime] = useState(0);
   const [areCommandsToDisplay, setAreCommandsToDisplay] = useState(false);
   const [isOutlineActive, setIsOutlineActive] = useState(outlineState);
+  // Live transcription runs outside of this component (it survives remounts),
+  // so its state is mirrored here through a subscription.
+  const [liveState, setLiveState] = useState(liveTranscription.getState());
 
   const isToTranscribe = useRef(false);
   const stream = useRef(null);
@@ -124,9 +141,13 @@ function VoiceRecorder({
     logPagesArgument: null,
   });
   const instantModel = useRef(null);
+  // Block being edited when the live transcription button is pressed.
+  const liveTargetUid = useRef(null);
 
   useEffect(() => {
+    const unsubscribeLive = liveTranscription.subscribe(setLiveState);
     return () => {
+      unsubscribeLive();
       if (isSafari) {
         safariRecorder.current.stop();
       } else {
@@ -273,6 +294,10 @@ function VoiceRecorder({
       handleAskYourGraph(e);
       return;
     }
+    if (e.key.toLowerCase() === "l" && isLiveTranscriptionAvailable()) {
+      handleLiveTranscription(e);
+      return;
+    }
   };
 
   const handleEltHighlight = async (e) => {
@@ -375,6 +400,29 @@ function VoiceRecorder({
     lastCommand.current = transcribeAudio;
     initializeProcessing(e);
   };
+  // Live transcription is independent from the recorder: it doesn't record a
+  // note to transcribe afterwards, it streams the microphone and writes the
+  // text in the focused block while the user speaks.
+  const handleLiveTranscription = async (e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    // Same platforms as the recorder: no microphone access in the Roam MacOS
+    // desktop app nor in the mobile app.
+    if (!worksOnPlatform) {
+      handleRecordNotAvailable();
+      return;
+    }
+    await liveTranscription.toggle({ targetUid: liveTargetUid.current });
+    liveTargetUid.current = null;
+  };
+  // Clicking the button takes the focus away from the block being edited, so it
+  // is captured on mousedown — before the browser moves the focus — and used as
+  // the first target. Without a block focused, nothing is captured and the
+  // session falls back to creating a block in the current view, as before.
+  const captureLiveTarget = () => {
+    liveTargetUid.current =
+      window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || null;
+  };
   const handleTranslate = (e) => {
     lastCommand.current = translateAudio;
     initializeProcessing(e);
@@ -389,7 +437,11 @@ function VoiceRecorder({
   const handleOutlinerAgent = async (e, model) => {
     if (!(await extensionStorage.get("outlinerRootUid"))) {
       const rootUid = await setAsOutline();
-      if (rootUid) setIsOutlineActive(true);
+      if (rootUid) {
+        setIsOutlineActive(true);
+        // An active outline is worth showing, even if the icon is hidden by default.
+        setIsToDisplay((prev) => ({ ...prev, outlinerIcon: true }));
+      }
       return;
     }
     if (model) instantModel.current = model;
@@ -545,12 +597,31 @@ function VoiceRecorder({
       : selectedTranscriptionModel.includes("grok")
       ? !!GROK_API_KEY
       : openaiLibrary && openaiLibrary.key !== "";
+    // Models supporting it stream the transcript while they process the
+    // recording: display it in a temporary paragraph under the target block, so
+    // the user sees the text coming instead of a spinner. The block itself is
+    // only written once, with the final transcript.
+    let streamElt = null;
+    const onDelta =
+      isChatTranscribeActive || !targetUid
+        ? undefined
+        : (delta) => {
+            if (!streamElt) {
+              // Without the block rendered, insertParagraphForStream would fall
+              // back to some other block: better keep the spinner.
+              if (!document.querySelector(`[id*="${targetUid}"]`)) return;
+              removeSpinner(intervalId);
+              streamElt = insertParagraphForStream(targetUid);
+            }
+            if (streamElt) streamElt.innerText += delta;
+          };
     let transcribe =
       instantVoiceReco.current || audioFile
         ? isUsingWhisper && hasKey
-          ? await voiceProcessingCommand(audioFile)
+          ? await voiceProcessingCommand(audioFile, { onDelta })
           : instantVoiceReco.current
         : "Nothing has been recorded!";
+    if (streamElt) streamElt.remove();
     console.log("SpeechAPI: " + instantVoiceReco.current);
     if (isUsingWhisper && hasKey) console.log("Whisper: " + transcribe);
     if (transcribe === null) {
@@ -762,6 +833,7 @@ function VoiceRecorder({
         translateIcon: isTranslateIconDisplayed || translateOnly,
         completionIcon: true,
         askYourGraphIcon: true,
+        outlinerIcon: isOutlinerIconDisplayed || isOutlineActive,
       });
       setAreCommandsToDisplay(false);
     }
@@ -1006,6 +1078,67 @@ function VoiceRecorder({
         {jsxWarning()}
       </div>
       <div class="speech-ui-row2">
+        {/* Live transcription sits right after the record button: it is the
+            other voice mode, not a command applying to a recording. It is
+            hidden while a normal recording is in progress (the two modes are
+            exclusive, and the row then belongs to the recording commands) —
+            unless a live session is running, which must always be stoppable. */}
+        {isLiveTranscriptionAvailable() &&
+          worksOnPlatform &&
+          (liveState.active || (!isListening && !areCommandsToDisplay)) && (
+          <span class="bp3-popover-wrapper">
+            <span aria-haspopup="true" class="bp3-popover-target">
+              <span
+                onMouseDown={captureLiveTarget}
+                onClick={handleLiveTranscription}
+                class={`bp3-button bp3-minimal bp3-small speech-command speech-live-transcribe${
+                  liveState.active
+                    ? liveState.paused
+                      ? " live-paused"
+                      : " live-listening"
+                    : ""
+                }`}
+                tabindex="0"
+              >
+                <Tooltip
+                  openOnTargetFocus={false}
+                  content={
+                    liveState.connecting ? (
+                      <p>Opening the live session, wait before speaking…</p>
+                    ) : liveState.active ? (
+                      <p>
+                        Stop live transcription (L)
+                        <br />
+                        {liveState.paused
+                          ? "Paused on silence: speak to resume (not billed meanwhile)."
+                          : "Listening… billed per minute of streamed audio."}
+                      </p>
+                    ) : (
+                      <p>
+                        Start live transcription (L)
+                        <br /> <br />
+                        Your words are inserted in the focused block as you
+                        speak.
+                        <br />
+                        ⚠️ Billed per minute of streamed audio (~$1/hour)
+                      </p>
+                    )
+                  }
+                  hoverOpenDelay="500"
+                >
+                  {liveState.connecting ? (
+                    <FontAwesomeIcon icon={faSpinner} spin />
+                  ) : (
+                    <FontAwesomeIcon
+                      icon={faTowerBroadcast}
+                      beatFade={liveState.active && !liveState.paused}
+                    />
+                  )}
+                </Tooltip>
+              </span>
+            </span>
+          </span>
+          )}
         {(isListening ||
           areCommandsToDisplay) /*safariRecorder.current.activeStream?.active*/ &&
           isToDisplay.transcribeIcon &&
@@ -1092,7 +1225,7 @@ function VoiceRecorder({
           ))}
         {
           /*isListening || areCommandsToDisplay && */
-          isToDisplay.completionIcon &&
+          isToDisplay.outlinerIcon &&
             jsxCommandIcon({}, handleOutlinerAgent, () => (
               <Tooltip
                 openOnTargetFocus={false}

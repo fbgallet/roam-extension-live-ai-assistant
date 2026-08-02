@@ -305,6 +305,27 @@
   fill: var(--icon-color-top);
 }
 
+/* Live transcription: its icon has to show whether the session is streaming
+   (and being billed) or paused on silence, so its color must escape the flat
+   icon color applied above to every path of the toolbar — hence the container
+   class, needed to outweigh those rules. */
+.speech-to-roam-container-left .speech-live-transcribe.live-listening svg path,
+.speech-to-roam-container-top .speech-live-transcribe.live-listening svg path {
+  fill: #e00000;
+}
+.speech-to-roam-container-left .speech-live-transcribe.live-paused svg path,
+.speech-to-roam-container-top .speech-live-transcribe.live-paused svg path {
+  fill: #d9822b;
+}
+/* Same, for the live button of the chat panel (the rule above on
+   .full-results-chat-mic-button svg path would flatten it too). */
+.full-results-chat-live-button.live-listening svg path {
+  fill: #e00000;
+}
+.full-results-chat-live-button.live-paused svg path {
+  fill: #d9822b;
+}
+
 .full-results-chat-mic-button {
   margin-left: -5px;
 }

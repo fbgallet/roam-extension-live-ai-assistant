@@ -18,17 +18,17 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### 🆕 New in v.34 (July, 2026)
+### New in v.34 (August, 2026)
 
 - **New models support**: Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
+- 🆕 New **live transcription** (button next to the recorder): dictate and your words appear in the focused block — or in the Chat panel input — as you speak (billed per minute of streamed audio, ~$1/hour). Relying on `gpt-live-transcribe`, OpenAI API key required.
+- **Better voice transcription**: `gpt-transcribe` is the new default model for vocal notes (more accurate and cheaper than Whisper).
 - 🆕 **Attached files as input**, beyond `.pdf`: `.md`, `.txt`, `.csv`, `.json`, code files… are read and inserted in your request, so **any model** can use them (even local ones). `.docx`/`.pptx`/`.xlsx` work with **OpenAI models**.
 - Fixed **Gemini ignoring a .pdf from the context** at medium/high thinking level, and repaired `.pdf` support for OpenRouter, Groq, DeepSeek, Grok, custom endpoints, and Claude models with thinking enabled.
 
-### 🆕 New in v.33 (July, 2026)
+### New in v.33 (July, 2026)
 
 - 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.
-- The chat now **remembers your choices**: thinking on/off (per model, for the session) and Chat/Agent mode (across sessions).
-- Fixed **reasoning effortt** in chat Panel, for OpenAI (gpt-5.6-x) and Claude thinking models (Opus 4.x, Sonnet 5). GPT 5.6 adds "xhigh"/"max" effort, and disabling thinking keeps tools working.
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
@@ -196,7 +196,7 @@ You can track the cost of each request and the total per model for the current a
 
 ### Voice transcription
 
-You need either an account on OpenAI to benefit from Whisper (or `gpt-4o-transcribe` models) transcriptions, or a Groq one since you can define Groq as default provider for the audio transcription model and user the powerful `whisper-large-v3` model. Estimated cost is $0.006/minute.
+You need either an account on OpenAI to benefit from `gpt-transcribe` (the default model since v.34, $0.0045/minute), Whisper or `gpt-4o-transcribe` models, or a Groq one since you can define Groq as default provider for the audio transcription model and user the powerful `whisper-large-v3` model. Gemini (Google) and Grok (xAI) transcription models are supported too, the provider being deduced from the selected model.
 
 ⚠️ _Currently, voice recording isn't possible on either the MacOS desktop app or the Mobile app : microphone is not yet supported, so vocal notes transcription can't be achieved._
 
@@ -204,6 +204,8 @@ You need either an account on OpenAI to benefit from Whisper (or `gpt-4o-transcr
 - by default, the language should be automatically detected, but you can specify it for better results, using the [ISO 639-1 codes](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)
 - You can specify a list of words to be spelled in a specific way (e.g. proper nouns, acronyms, technical terms, etc.), see the Whisper prompt option in the settings.
 - if you have not entered any OpenAI API Key or Groq API Key, or if you disable Whisper, the free Web Speech API will be used to transcribe audio (⚠️ not available in Electron Desktop app and Firefox or Arc browser)
+
+🆕 **Live transcription** (v.34, new 📡 button next to the recorder, shown if you have an OpenAI API key and removable in the settings): instead of recording a note and transcribing it afterwards, your voice is streamed continuously and **the text is inserted in the focused block as you speak** (press `Enter` or click in another block to continue there). It is also available in the **Chat panel**, where the dictated text fills the input and is only sent when you validate it, the microphone pausing while the answer is generated. ⚠️ A live session is billed per minute of streamed audio (`gpt-live-transcribe`: ~$0.017/minute, i.e. ~$1/hour), silences included — so the microphone automatically stops being streamed after a configurable silence and resumes at your first word.
 
 - **Direct translation of vocal recording**:
 

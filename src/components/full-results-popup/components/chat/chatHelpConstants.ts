@@ -85,7 +85,10 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 // Update this version each time you update WHATS_NEW_RESPONSE content
 export const WHATS_NEW_VERSION = "34";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.33 & v.34 (July 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.34 (August 2026) 🎉
+
+#### **New models**
+- Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
 
 #### **Attached files, not just PDFs**
 - Attach a \`.md\`, \`.txt\`, \`.csv\`, \`.json\` or code file in your prompt or context — its content is read and inserted in the request, so **any model can use it**, even local Ollama ones
@@ -93,20 +96,16 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.33 & v.34 (July 2
 - The \`PDF\` checkbox in the Context menu is now \`Files\` and covers every supported format
 - Fixed: **Gemini was ignoring a PDF from the context** at medium/high thinking level. PDF support also repaired for OpenRouter, Groq, DeepSeek, Grok, custom endpoints, and for Claude models with thinking enabled
 
-#### **AI-powered tables**
+#### **Voice: new models & live dictation**
+- **\`gpt-transcribe\`** is the new default model for vocal notes: more accurate and cheaper than Whisper ($0.0045 vs $0.006/min), and its transcript now **streams** under the target block instead of a spinner
+- 🆕 **Live transcription**: a new button next to the recorder (with an OpenAI key) — dictate and your words are inserted **in the focused block as you speak**, press Enter or click another block and the rest goes there
+- In the chat, enable the live button in the "..." advanced options: your words fill the input, **you still validate with Enter**, and the mic pauses while the answer is generated, then waits for your voice
+- ⚠️ Billed per minute of streamed audio (~$1/hour), silences included — so the mic pauses by itself after a configurable silence, and only an actual voice wakes it up: your keyboard, a noise in the room, or anything happening while Roam isn't the focused window won't (sensitivity is adjustable in the settings)
+
+#### In v.33: **AI-powered tables**
 - Click a Roam table's row/column handle (or Right-click its "+" add-row/add-col buttons) for new **Live AI: auto-complete** or update options
 - Fill only the empty or \`[bracketed]\` cells of a row/column, **update** filled cells, or **generate** whole new rows & columns — cells stream in one by one
 - Full control: pick the model, thinking effort & style, and add context (sidebar, current page, [[pages]], or inline notes written after \`{{[[table]]}}\`)
-
-#### **More control over "thinking" models**
-- Turn reasoning on or off per conversation — and set your preferred default for each model
-- Works with more models now, including your own custom, OpenRouter and Ollama models
-- GPT 5.6: new "xhigh" and "max" effort; turning thinking off keeps tools working
-- The chat now remembers your thinking on/off (per model) and Chat/Agent mode
-- Fixed: the chosen reasoning effort was silently dropped in the chat panel
-
-#### **New models**
-- Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
@@ -125,6 +124,7 @@ export const LIVE_AI_TIPS = [
   "**Did you know?** You can get **vocabulary suggestions** inline (works only in Roam blocks, not in chat currently)! The AI will propose better word choices wrapped in `{{or: best | alternative | ~~original~~}}` - just accept the first suggestion",
   "**New context options**: In the context menu, use 'Siblings' to include sibling blocks, 'Path' for ancestors, or 'Queries' to include Roam native queries and :q Datomic query results as context!",
   "**Document generation**: Generate PDF, DOCX, or PPTX documents directly from your content or chat — great for sharing polished output outside Roam! (Anthropic API Key requested)",
+  "**Live transcription**: the 📡 button next to the microphone (with an OpenAI key) works the other way round from a recording: instead of recording a note then transcribing it, your words are inserted **in the focused block as you speak** — press Enter or click another block to continue there. It is billed per minute of streamed audio (~$1/hour), so it pauses by itself on silence and only a real voice wakes it up — not your keyboard, and not while you are in another window. Adjust 'Voice detection sensitivity' in the settings if it reacts too easily, or not enough (pick 'High' to dictate in a whisper).",
 ];
 
 // Tips specific to Chat
@@ -144,6 +144,7 @@ export const CHAT_TIPS = [
   "**Run SmartBlocks from chat**: Ask the agent to run any SmartBlock workflow — e.g., 'run Sb Daily on today's page'. It supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.",
   "**Vector search**: Enable the vector_search tool to search your Roam graph and uploaded files by meaning, not just keywords. Choose a free local provider (all in your browser) or OpenAI's vector store for uploaded documents.",
   "**Force any tool with /**: Type / followed by a tool name (e.g., /vector, /ask_your_graph, /run_smartblock) to use it for a single turn — even if it's disabled in your tools menu. Your persistent settings stay unchanged.",
+  "**Dictate your prompts**: enable 'Live transcription button' in the '...' advanced options to speak your message instead of typing it. The text fills the input as you speak, you still validate it with Enter, and the mic pauses while the answer is generated, then waits for your voice to start again. Billed per minute of streamed audio (~$1/hour), so it also pauses on silence.",
 ];
 
 // Tips applicable to both Live AI and Chat

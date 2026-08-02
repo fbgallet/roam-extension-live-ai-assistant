@@ -18,6 +18,8 @@ import {
 } from "@blueprintjs/core";
 import {
   faMicrophone,
+  faSpinner,
+  faTowerBroadcast,
   faWandMagicSparkles,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -38,10 +40,7 @@ import {
   AdvancedOptionsMenu,
   AdvancedOptionsState,
 } from "./AdvancedOptionsMenu";
-import {
-  isThinkingModel,
-  isThinkingOnly,
-} from "../../../../ai/modelRegistry";
+import { isThinkingModel, isThinkingOnly } from "../../../../ai/modelRegistry";
 import {
   getProviderModels,
   isModelVisible,
@@ -50,6 +49,10 @@ import {
   getModelMetadata,
   getModelCapabilities,
 } from "../../../../utils/modelConfigHelpers";
+import {
+  isLiveTranscriptionAvailable,
+  liveTranscription,
+} from "../../../../ai/liveTranscription";
 
 interface ChatInputAreaProps {
   chatInput: string;
@@ -168,6 +171,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isVoiceRecorderAvailable, setIsVoiceRecorderAvailable] =
     useState(false);
+  const [liveState, setLiveState] = useState(liveTranscription.getState());
   const [isAccessModeMenuOpen, setIsAccessModeMenuOpen] = useState(false);
   const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
   const commandSuggestInputRef = useRef<HTMLInputElement>(null);
@@ -829,6 +833,77 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     };
   }, [onChatInputChange, chatInputRef]);
 
+  // ==================== Live transcription ====================
+  // The session lives outside of this component (module singleton), so its
+  // state is mirrored here, and the callbacks it holds are read through refs:
+  // it keeps them for the whole session, across re-renders.
+  const onChatInputChangeRef = useRef(onChatInputChange);
+  onChatInputChangeRef.current = onChatInputChange;
+  const chatInputValueRef = useRef(chatInput);
+  chatInputValueRef.current = chatInput;
+  const startedLiveHereRef = useRef(false);
+
+  // Dictated text goes to the input, where the user still validates it: the
+  // message is never sent by voice.
+  const appendToChatInput = (text: string) => {
+    const textarea = chatInputRef.current;
+    const current = textarea ? textarea.value : chatInputValueRef.current || "";
+    // Deltas come with their own leading space: keep a single separator.
+    const chunk = /\s$/.test(current) ? text.replace(/^\s+/, "") : text;
+    if (!chunk) return;
+    const separator =
+      current && !/^\s/.test(chunk) && !/\s$/.test(current) ? " " : "";
+    const next = current + separator + chunk;
+    onChatInputChangeRef.current(next);
+    chatInputValueRef.current = next;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
+    // Only move the caret if the user is actually in the input: they may be
+    // reading the conversation while dictating.
+    if (document.activeElement === textarea)
+      textarea.setSelectionRange(next.length, next.length);
+  };
+
+  // Validation, by Enter or by the send button: mute right away rather than
+  // waiting for the answer to start, so the tail of the dictation can't land in
+  // the input that has just been emptied.
+  const handleSubmit = () => {
+    if (startedLiveHereRef.current) liveTranscription.pauseForResponse();
+    onSubmit();
+  };
+
+  const handleLiveClick = () => {
+    // Hand the focus back to the input: left on the button, Enter would toggle
+    // live transcription again instead of sending the dictated message.
+    chatInputRef.current?.focus();
+    if (liveTranscription.isActive()) {
+      startedLiveHereRef.current = false;
+      liveTranscription.stop();
+      return;
+    }
+    startedLiveHereRef.current = true;
+    liveTranscription.start({ sink: { append: appendToChatInput } });
+  };
+
+  useEffect(() => {
+    const unsubscribe = liveTranscription.subscribe(setLiveState);
+    return () => {
+      unsubscribe();
+      // Closing the chat must not leave a billed session running with a sink
+      // pointing at an unmounted input.
+      if (startedLiveHereRef.current) liveTranscription.stop();
+    };
+  }, []);
+
+  // Mute while the answer is being generated, resume as soon as it is over —
+  // unless the user turned the mode off in the meantime (stop() clears it).
+  useEffect(() => {
+    if (!liveTranscription.isActive() || !startedLiveHereRef.current) return;
+    if (isTyping) liveTranscription.pauseForResponse();
+    else liveTranscription.resumeAfterResponse();
+  }, [isTyping]);
+
   // Handle microphone button click - trigger VoiceRecorder
   const handleMicClick = () => {
     const recordButton = document.querySelector(
@@ -1263,7 +1338,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <div className="full-results-chat-input-container">
         {isVoiceRecorderAvailable && (
           <Tooltip
-            usePortal={false}
+            /* No usePortal={false} here: rendered inside the panel, the tooltip
+               of a button sitting on its left edge gets clipped. Every other
+               tooltip of the panel goes through a portal. */
             content={
               isRecording
                 ? "Click to transcribe voice to text"
@@ -1286,6 +1363,62 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             </Button>
           </Tooltip>
         )}
+        {/* Off by default, shown from the "..." advanced options. Hidden while a
+            classic recording is in progress (the two modes are exclusive),
+            unless a live session is running: it must stay stoppable. */}
+        {isLiveTranscriptionAvailable() &&
+          advancedOptions?.showLiveTranscription &&
+          (!isRecording || liveState.active) && (
+            <Tooltip
+              content={
+                liveState.connecting ? (
+                  <p>Opening the live session, wait before speaking…</p>
+                ) : liveState.active ? (
+                  <p>
+                    Stop live transcription
+                    <br />
+                    {liveState.paused
+                      ? "Paused: it resumes as soon as you speak again (or once the answer is done)."
+                      : "Listening… your words go to the input, you still validate them."}
+                  </p>
+                ) : (
+                  <p>
+                    Live transcription
+                    <br />
+                    Speak: your words appear in the input, and you send them
+                    with Enter as usual.
+                    <br />
+                    The microphone pauses while the answer is generated.
+                    <br />
+                    ⚠️ Billed per minute of streamed audio (~$1/hour)
+                  </p>
+                )
+              }
+              hoverOpenDelay={500}
+            >
+              <Button
+                minimal
+                small
+                className={`full-results-chat-mic-button full-results-chat-toolbar-button full-results-chat-live-button${
+                  liveState.active
+                    ? liveState.paused
+                      ? " live-paused"
+                      : " live-listening"
+                    : ""
+                }`}
+                onClick={handleLiveClick}
+              >
+                {liveState.connecting ? (
+                  <FontAwesomeIcon icon={faSpinner} spin />
+                ) : (
+                  <FontAwesomeIcon
+                    icon={faTowerBroadcast}
+                    beatFade={liveState.active && !liveState.paused}
+                  />
+                )}
+              </Button>
+            </Tooltip>
+          )}
         <Popover
           minimal={true}
           isOpen={isPageAutocompleteOpen}
@@ -1443,7 +1576,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                   }
                 } else {
                   // Normal submit
-                  onSubmit();
+                  handleSubmit();
                 }
               } else if (e.key === "Escape" && slashCommandMode) {
                 // Close slash mode on Escape
@@ -1470,7 +1603,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         ) : (
           <Button
             icon="send-message"
-            onClick={onSubmit}
+            onClick={handleSubmit}
             disabled={!chatInput.trim() || isTyping}
             intent="primary"
             className="full-results-chat-send"

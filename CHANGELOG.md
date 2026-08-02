@@ -1,4 +1,4 @@
-### v.34 (July 30th, 2026) Attached files as input: Markdown, text & Office documents
+### v.34 (August, 2026) Attached files as input: Markdown, text & Office documents
 
 **New features**
 
@@ -9,9 +9,15 @@
   - Reading a file is skipped, with a clear message, beyond a total volume of inlined content, so a context holding many attachments can't fill the context window nor trigger a download per link. The same file referenced in both your prompt and your context is downloaded and sent only once.
   - The `PDF` checkbox in the Context menu becomes `Files`, and the "Always extract PDF content" setting becomes "Always extract attached files content": both now cover every supported format. In the Chat panel, the same choice is available per conversation in the "..." (advanced options) menu — and **files present in the context are only read if you enable it**, while a file you write yourself in your prompt is always read.
 
+- **Voice transcription with OpenAI's new models**:
+  - **`gpt-transcribe`** becomes the default model for vocal notes: more accurate and **cheaper** than whisper-1 ($0.0045/min vs $0.006/min). It replaces Whisper's free-form prompt by structured hints. Users still on `whisper-1` (the historical default) are switched over automatically, once: whisper-1 remains available in the settings and in the Models dialog if you prefer it, and your choice is then respected.
+  - 🆕 **Live transcription** — a new button next to the recorder (shown when you have an OpenAI API key, and removable in the settings): dictate continuously and **your words are inserted in the focused block as you speak**. Press `Enter` or click in another block, and what follows goes there. Since the target is simply whichever block has the focus, this works anywhere a block can be edited — including **inside a Roam table cell or a diagram**, filling a table or drawing a map of ideas by voice. Also available **in the Chat panel** (button to enable in the "..." advanced options menu): your words fill the input, you still validate them with `Enter`, and the microphone pauses while the answer is generated, then waits for your voice to resume.
+  - ⚠️ A live session is billed per minute of streamed audio (`gpt-live-transcribe`: ~$0.017/min, so ~$1 per hour), **silences included** — so the microphone stops being streamed after a configurable silence (10 seconds by default) and starts again on your first word, without reconnecting. Coming back on the air takes an **actual voice**, not just a sound: the detection looks for the periodicity of vocal cords and a sustained loudness, so typing on your keyboard or a noise in the room doesn't wake up the microphone. Leaving Roam for another window pauses the streaming at once, and nothing can restart it from there: no word is ever dictated into a block you aren't looking at. A "Voice detection sensitivity" setting adjusts how strict this is, from `High` (any sound, the only level where a whisper is enough) to `Low` for a noisy room.
+
 **Updates**
 
 - New models support: Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
+- The **Outliner Agent icon is now hidden by default** (a setting brings it back): it remains available with the `O` key while recording and in the Live AI context menu, and reappears as soon as an outline is set as active.
 - **New `-latest` model aliases**: each main model family now has a stable alias always pointing to its most recent supported model — `gpt-sol-latest`, `gpt-terra-latest`, `gpt-luna-latest`, `opus-latest`, `sonnet-latest`, `haiku-latest`, `fable-latest`, `gemini-pro-latest`, `gemini-flash-latest`, `gemini-lite-latest`, `grok-latest`, `deepseek-pro-latest`, `deepseek-flash-latest`. Use them as the model parameter in your SmartBlocks (`<%LIVEAIGEN%>`, `<%LIVEAITEMPLATE%>`…) so your templates don't need to be updated at each new model release.
 
 **Fixed**

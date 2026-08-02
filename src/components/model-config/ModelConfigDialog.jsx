@@ -94,7 +94,7 @@ export const ModelConfigDialog = ({
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [transcriptionModelId, setTranscriptionModelId] = useState(
-    () => extensionStorage?.get("transcriptionModel") || "whisper-1"
+    () => extensionStorage?.get("transcriptionModel") || "gpt-transcribe"
   );
 
   // Load config when dialog opens
@@ -116,7 +116,7 @@ export const ModelConfigDialog = ({
       setSearchQuery("");
       // Refresh transcription model from storage (may have changed in main settings)
       setTranscriptionModelId(
-        extensionStorage.get("transcriptionModel") || "whisper-1"
+        extensionStorage.get("transcriptionModel") || "gpt-transcribe"
       );
 
       // Clear NEW badges after 3 seconds of viewing

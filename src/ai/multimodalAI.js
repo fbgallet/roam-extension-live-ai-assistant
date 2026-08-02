@@ -1,6 +1,7 @@
 import {
   openaiLibrary,
   transcriptionLanguage,
+  speechLanguage,
   whisperPrompt,
   resImages,
   groqLibrary,
@@ -60,7 +61,111 @@ const TRANSCRIPTION_THRESHOLDS = {
   highCompression: 2.4, // abnormally repetitive text (decode loop)
 };
 
-export async function transcribeAudio(filename) {
+// `gpt-transcribe` (and the live model) replace Whisper's free-form `prompt`
+// conditioning by two structured hints: `keywords` for literal terms expected in
+// the audio, `languages` for the expected spoken languages. `prompt` is kept, but
+// to describe the recording's setting. `language` and `languages` are mutually
+// exclusive: sending both is rejected.
+export const isGptTranscribeModel = (model) =>
+  (model || "").toLowerCase().trim() === "gpt-transcribe";
+
+// Short description of what the audio is, NOT a task instruction (see above).
+const GPT_TRANSCRIBE_PROMPT =
+  "A personal voice note dictated by a single speaker into their note-taking app. " +
+  "Transcribe it faithfully, with paragraphs at natural speech breaks or topic changes.";
+
+// `languages` expects ISO 639-1 codes, which is exactly what the "Transcription
+// language" setting holds. The browser-recognition language ("fr-FR", "en-US"…)
+// is used as a fallback, reduced to its base code, so that users who only set
+// that one still get a language hint.
+export const getTranscriptionLanguages = () => {
+  const code =
+    transcriptionLanguage ||
+    (speechLanguage && speechLanguage !== "Browser default"
+      ? speechLanguage.split("-")[0]
+      : "");
+  return code ? [code] : undefined;
+};
+
+// The user's vocabulary hint (the "Vocabulary for transcription" setting) is a
+// free-text list; `keywords` expects single-line literals. Any keyword holding
+// "<", ">", CR or LF makes the API reject the WHOLE request, so they are dropped.
+export const parseTranscriptionKeywords = (str) => {
+  if (!str || typeof str !== "string") return [];
+  return str
+    .split(/[,;\n\r]+/)
+    .map((k) => k.trim())
+    .filter((k) => k && !/[<>]/.test(k))
+    .slice(0, 100);
+};
+
+// Add the gpt-transcribe hints to a transcriptions.create() payload.
+const addGptTranscribeHints = (options, vocabularyHint, extraPrompt) => {
+  options.response_format = "json"; // text/verbose_json/srt/vtt aren't supported
+  options.prompt = extraPrompt
+    ? `${GPT_TRANSCRIBE_PROMPT}\n\n${extraPrompt}`
+    : GPT_TRANSCRIBE_PROMPT;
+  const keywords = parseTranscriptionKeywords(vocabularyHint);
+  if (keywords.length) options.keywords = keywords;
+  const languages = getTranscriptionLanguages();
+  if (languages) options.languages = languages;
+  return options;
+};
+
+// Run a transcription request, retrying once without the optional hints if the
+// API rejects them: a malformed keyword or an unsupported language code would
+// otherwise lose the whole recording.
+const createTranscription = async (client, options) => {
+  // `stream` has to be repeated in the request options: the SDK only parses the
+  // response as an event stream when it is set THERE (in the body alone, it just
+  // asks the API for SSE and hands back the raw text).
+  const requestOptions = options.stream ? { stream: true } : undefined;
+  try {
+    return await client.audio.transcriptions.create(options, requestOptions);
+  } catch (error) {
+    const hasHints = options.keywords || options.languages || options.prompt;
+    if (!hasHints || error?.status !== 400) throw error;
+    console.warn(
+      "Transcription hints rejected, retrying without them:",
+      error.message
+    );
+    const { keywords, languages, prompt, ...retryOptions } = options;
+    return await client.audio.transcriptions.create(
+      retryOptions,
+      requestOptions
+    );
+  }
+};
+
+// Last-resort parser, used only if the SDK hands back the event stream as plain
+// text instead of an iterable: rebuild the transcript from the SSE payloads.
+const parseRawSseTranscript = (raw) => {
+  if (!raw.includes("transcript.text")) return raw.trim();
+  let text = "";
+  for (const line of raw.split("\n")) {
+    if (!line.startsWith("data:")) continue;
+    try {
+      const event = JSON.parse(line.slice(5).trim());
+      if (event.type === "transcript.text.delta" && event.delta)
+        text += event.delta;
+      else if (event.type === "transcript.text.done" && event.text)
+        text = event.text;
+    } catch (e) {}
+  }
+  return text.trim();
+};
+
+/**
+ * Transcribe a recorded audio File/Blob with the user-selected transcription model.
+ * @param {File|Blob} filename - the recording
+ * @param {object} [opts]
+ * @param {(delta: string) => void} [opts.onDelta] - when provided and the model
+ *   supports it (gpt-transcribe, gpt-4o(-mini)-transcribe), the transcript is
+ *   streamed and each chunk is handed to this callback as it arrives. The full
+ *   transcript is still returned at the end.
+ * @returns {Promise<string|null>} transcript, "" on a handled error, null if no key
+ */
+export async function transcribeAudio(filename, { onDelta } = {}) {
   // Provider is auto-detected from the selected transcription model id.
   const selectedModel = (transcriptionModel || "").toLowerCase();
   if (selectedModel.includes("gemini")) {
@@ -97,70 +202,75 @@ export async function transcribeAudio(filename) {
     // user's vocabulary/spelling hints. The gpt-4o(-mini)-transcribe models are
     // GPT-4o based and DO follow prompt instructions, so give them the guidance
     // prompt plus any vocabulary hints.
+    const isGptTranscribe =
+      !isUsingGroqWhisper && isGptTranscribeModel(selectedModel);
     const isGpt4oTranscribe =
-      !isUsingGroqWhisper && selectedModel.includes("transcribe");
+      !isUsingGroqWhisper &&
+      !isGptTranscribe &&
+      selectedModel.includes("transcribe");
     const options = {
       file: filename,
       model:
         isUsingGroqWhisper && groqLibrary
           ? "whisper-large-v3"
           : transcriptionModel,
-      // stream: true, // doesn't work as real streaming here
       // (3) Whisper models expose per-segment confidence via verbose_json, which
       // lets us drop hallucinated segments below. gpt-4o(-mini)-transcribe only
-      // supports json/text, so keep plain text for them.
+      // supports json/text, so keep plain text for them; gpt-transcribe only
+      // supports json (set by addGptTranscribeHints).
       response_format: isGpt4oTranscribe ? "text" : "verbose_json",
     };
-    if (isGpt4oTranscribe) {
+    if (isGptTranscribe) {
+      addGptTranscribeHints(options, whisperPrompt);
+    } else if (isGpt4oTranscribe) {
       let prompt =
         "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes.";
       if (whisperPrompt)
         prompt += `\n\nSpecific words or proper nouns to spell correctly: ${whisperPrompt}`;
       options.prompt = prompt;
-    } else if (whisperPrompt) {
-      options.prompt = whisperPrompt;
+      if (transcriptionLanguage) options.language = transcriptionLanguage;
+    } else {
+      if (whisperPrompt) options.prompt = whisperPrompt;
+      if (transcriptionLanguage) options.language = transcriptionLanguage;
     }
-    if (transcriptionLanguage) options.language = transcriptionLanguage;
-    const transcript =
-      isUsingGroqWhisper && groqLibrary
-        ? await groqLibrary.audio.transcriptions.create(options)
-        : await openaiLibrary.audio.transcriptions.create(options);
-    // console.log(transcript);
+    // Real streaming of the transcript of an already recorded file: the GPT
+    // models emit `transcript.text.delta` events while they transcribe (whisper-1
+    // doesn't, it only answers once the whole audio is processed).
+    const isStreamable = isGptTranscribe || isGpt4oTranscribe;
+    if (isStreamable && typeof onDelta === "function") options.stream = true;
+
+    const client =
+      isUsingGroqWhisper && groqLibrary ? groqLibrary : openaiLibrary;
+    const transcript = await createTranscription(client, options);
+
+    const isEventStream =
+      typeof transcript?.[Symbol.asyncIterator] === "function";
+    if (options.stream && isEventStream) {
+      let streamedText = "";
+      for await (const event of transcript) {
+        if (event?.type === "transcript.text.delta" && event.delta) {
+          streamedText += event.delta;
+          onDelta(event.delta);
+        } else if (event?.type === "transcript.text.done" && event.text) {
+          // The final event carries the whole (possibly revised) transcript.
+          streamedText = event.text;
+        }
+      }
+      return streamedText.trim();
+    }
+    // Streaming was asked for but the response came back unparsed (raw SSE
+    // text): recover the transcript from it rather than losing the recording.
+    if (options.stream && typeof transcript === "string")
+      return parseRawSseTranscript(transcript);
 
     // gpt-4o path: response_format "text" returns a plain string.
-    if (isGpt4oTranscribe || typeof transcript === "string")
+    // gpt-transcribe path: json, i.e. { text, languages: [{ code }] }.
+    if (typeof transcript === "string")
       return transcript ? transcript.trim() : "";
+    if (isGptTranscribe) return transcript?.text ? transcript.text.trim() : "";
 
     // Whisper verbose_json path: filter out hallucinated segments before joining.
     return filterWhisperSegments(transcript);
-
-    // streaming doesn't work as expected (await for the whole audio transcription before streaming...)
-    // let transcribedText = "";
-    // const streamElt = insertParagraphForStream("FSeIh5CS8"); // test uid
-    // let accumulatedData = "";
-    // for await (const event of transcript) {
-    //   accumulatedData += event;
-    //   const endOfMessageIndex = accumulatedData.indexOf("\n");
-    //   if (endOfMessageIndex !== -1) {
-    //     const completeMessage = accumulatedData.substring(0, endOfMessageIndex);
-    //     console.log("completedMessage :>> ", completeMessage);
-    //     if (completeMessage.startsWith("data: ")) {
-    //       try {
-    //         const jsonStr = completeMessage.replace("data: ", "");
-    //         const jsonObj = JSON.parse(jsonStr);
-    //         console.log("Nouvel objet reçu:", jsonObj);
-    //         // console.log(`Type: ${jsonObj.type}, Delta: ${jsonObj.delta}`);s
-    //         streamElt.innerHTML += jsonObj.delta;
-    //         transcribedText += jsonObj.delta;
-    //       } catch (error) {
-    //         console.error("Erreur de parsing JSON:", error);
-    //       }
-    //     }
-    //     accumulatedData = accumulatedData.substring(endOfMessageIndex + 2);
-    //   }
-    // }
-    // streamElt.remove();
-    // return transcribedText;
   } catch (error) {
     console.error(error.message);
     AppToaster.show({
@@ -2429,6 +2539,8 @@ export const transcribeAudioFromBlock = async (
       // Prepare transcription options
       const defaultPrompt =
         "Provide a clear transcription with proper paragraphs based on natural speech breaks, topic changes, or speaker changes. If multiple speakers are detected, indicate speaker changes.";
+      const isGptTranscribe =
+        !isUsingGroqWhisper && isGptTranscribeModel(transcriptionModel);
       const options = {
         file: audioFile,
         model:
@@ -2436,17 +2548,22 @@ export const transcribeAudioFromBlock = async (
             ? "whisper-large-v3"
             : transcriptionModel,
         response_format: "text",
-        prompt: userPrompt
-          ? `${defaultPrompt}\n\nAdditional instructions: ${userPrompt}`
-          : whisperPrompt || defaultPrompt,
       };
 
-      if (transcriptionLanguage) options.language = transcriptionLanguage;
+      if (isGptTranscribe) {
+        // json only, structured keywords/languages hints (no `language`).
+        addGptTranscribeHints(options, whisperPrompt, userPrompt);
+      } else {
+        options.prompt = userPrompt
+          ? `${defaultPrompt}\n\nAdditional instructions: ${userPrompt}`
+          : whisperPrompt || defaultPrompt;
+        if (transcriptionLanguage) options.language = transcriptionLanguage;
+      }
 
-      const transcript =
-        isUsingGroqWhisper && groqLibrary
-          ? await groqLibrary.audio.transcriptions.create(options)
-          : await openaiLibrary.audio.transcriptions.create(options);
+      const transcript = await createTranscription(
+        isUsingGroqWhisper && groqLibrary ? groqLibrary : openaiLibrary,
+        options
+      );
 
       return transcript.text || transcript;
     } else {

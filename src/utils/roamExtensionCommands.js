@@ -7,6 +7,11 @@ import {
   isUsingWhisper,
 } from "..";
 import {
+  isLiveTranscriptionAvailable,
+  toggleLiveTranscription,
+} from "../ai/liveTranscription";
+import { AppToaster } from "../components/Toaster";
+import {
   aiCompletionRunner,
   copyTemplate,
   getStylePrompt,
@@ -67,6 +72,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         )
           toggleComponentVisibility();
       } else simulateClickOnRecordingButton();
+    },
+  });
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI: Start/Stop live voice transcription",
+    callback: () => {
+      if (!isLiveTranscriptionAvailable()) {
+        AppToaster.show({
+          message:
+            "Live transcription needs an OpenAI API key and the 'Live transcription' setting enabled (it is billed per minute of streamed audio).",
+          intent: "warning",
+          timeout: 8000,
+        });
+        return;
+      }
+      toggleLiveTranscription();
     },
   });
   // DEPRECATED IN V.12

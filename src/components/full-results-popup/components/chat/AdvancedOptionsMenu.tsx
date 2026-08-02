@@ -18,6 +18,8 @@ import {
 } from "@blueprintjs/core";
 import { AdvancedModelParams } from "../../../../ai/agents/langraphModelsLoader";
 import { getTemperatureConfig } from "../../../../ai/modelRegistry";
+import { extensionStorage } from "../../../../index";
+import { isLiveTranscriptionAvailable } from "../../../../ai/liveTranscription";
 
 export interface AdvancedOptionsState {
   // Model parameters with enable/disable switches
@@ -32,6 +34,8 @@ export interface AdvancedOptionsState {
   // PDF extraction
   includePdfEnabled: boolean;
   includePdf: boolean;
+  // Display the live transcription button next to the microphone
+  showLiveTranscription: boolean;
 }
 
 export function getDefaultAdvancedOptions(
@@ -48,6 +52,10 @@ export function getDefaultAdvancedOptions(
     presencePenalty: 0,
     includePdfEnabled: false,
     includePdf: globalAlwaysExtractPdf,
+    // Unlike the model overrides above, this one is a display preference: it
+    // is remembered instead of resetting with each new conversation.
+    showLiveTranscription:
+      extensionStorage?.get("chatLiveTranscription") === true,
   };
 }
 
@@ -288,6 +296,44 @@ export const AdvancedOptionsMenu: React.FC<AdvancedOptionsMenuProps> = ({
                 />
               </div>
             )}
+          </div>
+
+          <MenuDivider />
+
+          {/* Live transcription button (display preference, remembered) */}
+          <div className="advanced-option-row">
+            <Switch
+              checked={options.showLiveTranscription}
+              disabled={!isLiveTranscriptionAvailable()}
+              label="Live transcription button"
+              onChange={(e) => {
+                const checked = e.currentTarget.checked;
+                extensionStorage.set("chatLiveTranscription", checked);
+                update({ showLiveTranscription: checked });
+              }}
+              alignIndicator="right"
+              style={{ marginBottom: 0, fontSize: 12 }}
+            />
+            {/* maxWidth keeps the hint wrapping inside the popover instead of
+                widening it (the container only sets a minWidth). */}
+            <div
+              style={{
+                fontSize: 11,
+                paddingLeft: 8,
+                opacity: 0.7,
+                maxWidth: 236,
+              }}
+            >
+              {isLiveTranscriptionAvailable() ? (
+                <>
+                  Streamed transcription, waiting for your voice on each turn.
+                  <br />
+                  ⚠️ Billed per minute of streamed audio (~$1/hour).
+                </>
+              ) : (
+                "Requires an OpenAI API key, and 'Live transcription' enabled in Live AI settings."
+              )}
+            </div>
           </div>
         </div>
       }

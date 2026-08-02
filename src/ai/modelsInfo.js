@@ -46,11 +46,20 @@ export const webSearchModels = Object.entries(MODEL_REGISTRY)
 
 // OpenAI dedicated transcription models (use the audio.transcriptions endpoint).
 // Also routed through Groq (whisper-large-v3) when "Use Whisper via Groq" is on.
+// `gpt-transcribe` is the current recommended model (cheaper and more accurate
+// than whisper-1) but takes structured `keywords`/`languages` hints instead of
+// Whisper's free-form prompt conditioning, see transcribeAudio().
 export const openaiTranscriptionModels = [
+  "gpt-transcribe",
   "whisper-1",
   "gpt-4o-mini-transcribe",
   "gpt-4o-transcribe",
 ];
+
+// Models usable for continuous live transcription through the Realtime API.
+// They are NOT part of `transcriptionModels`: they can't transcribe an uploaded
+// file, they only stream a transcript of a microphone feed (see liveTranscription.js).
+export const liveTranscriptionModels = ["gpt-live-transcribe"];
 
 // Gemini models able to transcribe audio (via generateContent, audioInput capability).
 // Image-output variants (Nano Banana) are excluded.
@@ -78,6 +87,8 @@ export const transcriptionModels = [
 // Display labels for synthetic transcription ids that aren't in MODEL_REGISTRY.
 const TRANSCRIPTION_MODEL_LABELS = {
   "grok-stt": "Grok (xAI) Speech-to-Text",
+  "gpt-transcribe": "gpt-transcribe (recommended)",
+  "gpt-live-transcribe": "gpt-live-transcribe",
 };
 
 // Human-readable label for a transcription model id (uses the registry name when known).

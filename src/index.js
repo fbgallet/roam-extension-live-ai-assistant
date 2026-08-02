@@ -28,6 +28,7 @@ import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
 import {
   getModelsInfo,
   imageGenerationModels,
+  liveTranscriptionModels,
   transcriptionModels,
   updateTokenCounter,
 } from "./ai/modelsInfo";
@@ -56,6 +57,11 @@ import {
 } from "./components/contextMenu";
 import { getValidLanguageCode } from "./ai/languagesSupport";
 import {
+  LIVE_SILENCE_TIMEOUTS,
+  LIVE_VOICE_SENSITIVITY,
+  stopLiveTranscription,
+} from "./ai/liveTranscription";
+import {
   getArrayFromList,
   getCustomStyles,
   getFlattenedContentFromTree,
@@ -83,11 +89,18 @@ export let GROQ_API_KEY = "";
 export let menuModifierKey;
 export let isUsingWhisper;
 export let transcriptionModel;
+// Live (streaming) transcription: separate model & settings, see liveTranscription.js
+export let isLiveTranscriptionEnabled;
+export let liveTranscriptionModel;
+export let liveTranscriptionDelay;
+export let liveSilenceTimeout;
+export let liveVoiceSensitivity;
 export let isUsingGroqWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
 export let whisperPrompt;
 export let isTranslateIconDisplayed;
+export let isOutlinerIconDisplayed;
 export let defaultModel;
 export let reasoningEffort;
 export let availableModels = [];
@@ -864,12 +877,91 @@ function getPanelConfig() {
         id: "transcriptionModel",
         name: "Voice transcription model",
         description:
-          "Choose which voice transcription model to use. OpenAI models (whisper-1, gpt-4o-transcribe…) need an OpenAI key; Gemini models need a Google key (the provider is selected automatically from the model): ",
+          "Choose which voice transcription model to use. OpenAI models (gpt-transcribe, whisper-1…) need an OpenAI key; Gemini models need a Google key (the provider is selected automatically from the model). gpt-transcribe is recommended: more accurate and cheaper ($0.0045/min) than whisper-1 ($0.006/min): ",
         action: {
           type: "select",
           items: transcriptionModels,
           onChange: (evt) => {
             setTranscriptionModel(evt);
+          },
+        },
+      },
+      {
+        id: "liveTranscription",
+        name: "Live transcription (dictation on the go)",
+        description: (
+          <>
+            <span>
+              Add a button to transcribe your voice continuously and{" "}
+              <b>insert the text as you speak in the focused block</b> (press
+              Enter or click in another block to continue there). Requires an
+              OpenAI API key.
+            </span>
+            <br></br>
+            ⚠️ <b>More expensive</b>: billed per minute of microphone streaming,
+            about 4x the cost of basic transcription (gpt-live-transcribe:
+            ~$0.017/min, so ~$1 per hour). Don't forget to stop it when you're
+            done !
+          </>
+        ),
+        action: {
+          type: "switch",
+          onChange: () => {
+            isLiveTranscriptionEnabled = !isLiveTranscriptionEnabled;
+            if (!isLiveTranscriptionEnabled) stopLiveTranscription();
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "liveTranscriptionModel",
+        name: "Live transcription model",
+        description: "Model used for live (streaming) transcription:",
+        action: {
+          type: "select",
+          items: liveTranscriptionModels,
+          onChange: (evt) => {
+            liveTranscriptionModel = evt;
+          },
+        },
+      },
+      {
+        id: "liveSilenceTimeout",
+        name: "Pause live transcription on silence",
+        description:
+          "A live session is billed for every minute of audio streamed, silences included. After this much silence, the microphone stops being streamed (and resumes automatically as soon as you speak again, without reconnecting). 'Never' streams continuously until you stop it:",
+        action: {
+          type: "select",
+          items: Object.keys(LIVE_SILENCE_TIMEOUTS),
+          onChange: (evt) => {
+            liveSilenceTimeout = evt;
+          },
+        },
+      },
+      {
+        id: "liveVoiceSensitivity",
+        name: "Voice detection sensitivity",
+        description:
+          "How easily the microphone comes back on after a pause on silence. Lower it if typing on the keyboard or a background noise is enough to resume, raise it if you have to speak twice to be heard:",
+        action: {
+          type: "select",
+          items: Object.keys(LIVE_VOICE_SENSITIVITY),
+          onChange: (evt) => {
+            liveVoiceSensitivity = evt;
+          },
+        },
+      },
+      {
+        id: "liveTranscriptionDelay",
+        name: "Live transcription latency",
+        description:
+          "Trade-off between how fast the text appears and how accurate it is ('minimal' is the fastest, 'xhigh' the most accurate):",
+        action: {
+          type: "select",
+          items: ["minimal", "low", "medium", "high", "xhigh"],
+          onChange: (evt) => {
+            liveTranscriptionDelay = evt;
           },
         },
       },
@@ -944,10 +1036,10 @@ function getPanelConfig() {
       },
       {
         id: "prompt",
-        name: "Prompt for Whisper",
+        name: "Vocabulary for transcription",
         className: "liveai-settings-largeinput",
         description:
-          "You can enter a list of specific words or proper nouns for better recognition and spelling:",
+          "You can enter a list of specific words or proper nouns for better recognition and spelling (comma separated). With gpt-transcribe and live transcription, they are sent as `keywords` hints:",
         action: {
           type: "input",
           onChange: (evt) => {
@@ -1018,6 +1110,20 @@ function getPanelConfig() {
           type: "switch",
           onChange: (evt) => {
             isTranslateIconDisplayed = !isTranslateIconDisplayed;
+            unmountComponent(position);
+            mountComponent(position);
+          },
+        },
+      },
+      {
+        id: "outlinerIcon",
+        name: "Outliner Agent Icon",
+        description:
+          "Always display the Outliner Agent icon (it remains available with the 'O' key and in the Live AI context menu):",
+        action: {
+          type: "switch",
+          onChange: () => {
+            isOutlinerIconDisplayed = !isOutlinerIconDisplayed;
             unmountComponent(position);
             mountComponent(position);
           },
@@ -1340,8 +1446,40 @@ export default {
       await extensionAPI.settings.set("whisper", true);
     isUsingWhisper = extensionAPI.settings.get("whisper");
     if (extensionAPI.settings.get("transcriptionModel") === null)
-      await extensionAPI.settings.set("transcriptionModel", "whisper-1");
+      await extensionAPI.settings.set("transcriptionModel", "gpt-transcribe");
+    // One-time migration to gpt-transcribe: whisper-1 was the historical
+    // default, inherited rather than chosen by most users, and the new model is
+    // both more accurate and cheaper. Guarded by a flag so that re-selecting
+    // whisper-1 afterwards is respected instead of being reset at each load.
+    else if (!extensionAPI.settings.get("gptTranscribeMigration")) {
+      if (extensionAPI.settings.get("transcriptionModel") === "whisper-1")
+        await extensionAPI.settings.set("transcriptionModel", "gpt-transcribe");
+    }
+    if (!extensionAPI.settings.get("gptTranscribeMigration"))
+      await extensionAPI.settings.set("gptTranscribeMigration", true);
     transcriptionModel = extensionAPI.settings.get("transcriptionModel");
+    if (extensionAPI.settings.get("liveTranscription") === null)
+      await extensionAPI.settings.set("liveTranscription", true);
+    isLiveTranscriptionEnabled = extensionAPI.settings.get("liveTranscription");
+    if (extensionAPI.settings.get("liveTranscriptionModel") === null)
+      await extensionAPI.settings.set(
+        "liveTranscriptionModel",
+        liveTranscriptionModels[0],
+      );
+    liveTranscriptionModel = extensionAPI.settings.get(
+      "liveTranscriptionModel",
+    );
+    if (extensionAPI.settings.get("liveTranscriptionDelay") === null)
+      await extensionAPI.settings.set("liveTranscriptionDelay", "low");
+    liveTranscriptionDelay = extensionAPI.settings.get(
+      "liveTranscriptionDelay",
+    );
+    if (extensionAPI.settings.get("liveSilenceTimeout") === null)
+      await extensionAPI.settings.set("liveSilenceTimeout", "10 sec.");
+    liveSilenceTimeout = extensionAPI.settings.get("liveSilenceTimeout");
+    if (extensionAPI.settings.get("liveVoiceSensitivity") === null)
+      await extensionAPI.settings.set("liveVoiceSensitivity", "Medium");
+    liveVoiceSensitivity = extensionAPI.settings.get("liveVoiceSensitivity");
     if (extensionAPI.settings.get("groqwhisper") === null)
       await extensionAPI.settings.set("groqwhisper", false);
     isUsingGroqWhisper = extensionAPI.settings.get("groqwhisper");
@@ -1384,6 +1522,9 @@ export default {
     if (extensionAPI.settings.get("translateIcon") === null)
       await extensionAPI.settings.set("translateIcon", false);
     isTranslateIconDisplayed = extensionAPI.settings.get("translateIcon");
+    if (extensionAPI.settings.get("outlinerIcon") === null)
+      await extensionAPI.settings.set("outlinerIcon", false);
+    isOutlinerIconDisplayed = extensionAPI.settings.get("outlinerIcon");
     if (extensionAPI.settings.get("ttsVoice") === null)
       await extensionAPI.settings.set("ttsVoice", "Ash");
     ttsVoice = extensionAPI.settings.get("ttsVoice");
@@ -1671,6 +1812,10 @@ export default {
     console.log("Extension loaded.");
   },
   onunload: async () => {
+    // Close the microphone & the Realtime socket first: they would otherwise
+    // outlive the extension (and keep being billed).
+    await stopLiveTranscription();
+
     unmountComponent(position);
     removeContainer(position);
 
