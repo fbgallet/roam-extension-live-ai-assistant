@@ -16,6 +16,7 @@
 import {
   OPENAI_API_KEY,
   isLiveTranscriptionEnabled,
+  liveAutoStopDelay,
   liveSilenceTimeout,
   liveVoiceSensitivity,
   liveTranscriptionDelay,
@@ -113,6 +114,19 @@ export const LIVE_VOICE_SENSITIVITY = {
 // Ceiling on the measured ambient level: however noisy the room, the gate must
 // never become unreachable for a normal voice.
 const MAX_NOISE_FLOOR = 0.02;
+
+// Closing a forgotten session. Being paused costs nothing, so this isn't about
+// the bill: it is about not leaving the microphone open for hours, and not
+// letting a session the user has forgotten wake up on a conversation held in
+// the room. The delay counts from the last words dictated, not from the pause,
+// so reading for twenty minutes then dictating a thought stays supported.
+export const LIVE_AUTO_STOP_DELAYS = {
+  Never: 0,
+  "10 min.": 600000,
+  "20 min.": 1200000,
+  "30 min.": 1800000,
+  "1 hour": 3600000,
+};
 // Duration of one captured chunk, used to convert `sustainMs` into a number of
 // consecutive chunks.
 const CHUNK_MS = (CHUNK_SIZE / SAMPLE_RATE) * 1000;
@@ -161,6 +175,8 @@ class LiveTranscriptionSession {
     // Manual mute while an answer is streaming (chat mode).
     this.responsePaused = false;
     this.lastVoiceAt = 0;
+    // When audio was last actually streamed, for the auto-stop below.
+    this.lastActivityAt = 0;
     // When a key was last pressed, to keep keystrokes from reopening the gate.
     this.lastKeyAt = 0;
     this.onKeyDown = () => {
@@ -337,6 +353,9 @@ class LiveTranscriptionSession {
     this.responsePaused = false;
     this.lastVoiceAt = 0;
     this.lastKeyAt = 0;
+    // Opening the session counts as activity: left at 0, the idle auto-stop
+    // below would consider the session abandoned from its very first chunk.
+    this.lastActivityAt = performance.now();
     // Measured ambient level, and how many consecutive chunks looked like a
     // voice, both used by the gate to decide when to resume (shouldSendChunk).
     this.noiseFloor = 0;
@@ -733,6 +752,18 @@ class LiveTranscriptionSession {
     }
 
     if (this.paused) {
+      // Nothing dictated for a long while: close the session rather than keep
+      // the microphone open on a session the user has forgotten about.
+      const autoStop = LIVE_AUTO_STOP_DELAYS[liveAutoStopDelay] ?? 0;
+      if (autoStop && now - this.lastActivityAt >= autoStop) {
+        AppToaster.show({
+          message: `Live transcription stopped after ${liveAutoStopDelay} without dictation. Click the button to start a new session.`,
+          timeout: 8000,
+        });
+        this.stop();
+        return false;
+      }
+
       // The ambient level is measured while muted, but ONLY on quiet chunks:
       // feeding it the loud ones would raise the floor as the user speaks, and
       // the threshold would run away from the very voice meant to cross it.
@@ -809,6 +840,7 @@ class LiveTranscriptionSession {
       this.prefixBuffer.forEach((buffered) => this.sendAudio(buffered));
       this.prefixBuffer = [];
     }
+    this.lastActivityAt = now;
     return true;
   }
 

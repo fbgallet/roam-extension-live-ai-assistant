@@ -57,6 +57,7 @@ import {
 } from "./components/contextMenu";
 import { getValidLanguageCode } from "./ai/languagesSupport";
 import {
+  LIVE_AUTO_STOP_DELAYS,
   LIVE_SILENCE_TIMEOUTS,
   LIVE_VOICE_SENSITIVITY,
   stopLiveTranscription,
@@ -95,6 +96,7 @@ export let liveTranscriptionModel;
 export let liveTranscriptionDelay;
 export let liveSilenceTimeout;
 export let liveVoiceSensitivity;
+export let liveAutoStopDelay;
 export let isUsingGroqWhisper;
 export let transcriptionLanguage;
 export let speechLanguage;
@@ -940,6 +942,19 @@ function getPanelConfig() {
         },
       },
       {
+        id: "liveAutoStopDelay",
+        name: "Stop live transcription when unused",
+        description:
+          "Close the session after this long without a word dictated (counted from your last words, not from the pause, so reading for a while then dictating stays possible). Being paused costs nothing, but this avoids leaving the microphone open on a session you have forgotten — and a much later conversation waking it up:",
+        action: {
+          type: "select",
+          items: Object.keys(LIVE_AUTO_STOP_DELAYS),
+          onChange: (evt) => {
+            liveAutoStopDelay = evt;
+          },
+        },
+      },
+      {
         id: "liveVoiceSensitivity",
         name: "Voice detection sensitivity",
         description:
@@ -1480,6 +1495,9 @@ export default {
     if (extensionAPI.settings.get("liveVoiceSensitivity") === null)
       await extensionAPI.settings.set("liveVoiceSensitivity", "Medium");
     liveVoiceSensitivity = extensionAPI.settings.get("liveVoiceSensitivity");
+    if (extensionAPI.settings.get("liveAutoStopDelay") === null)
+      await extensionAPI.settings.set("liveAutoStopDelay", "30 min.");
+    liveAutoStopDelay = extensionAPI.settings.get("liveAutoStopDelay");
     if (extensionAPI.settings.get("groqwhisper") === null)
       await extensionAPI.settings.set("groqwhisper", false);
     isUsingGroqWhisper = extensionAPI.settings.get("groqwhisper");
