@@ -29,6 +29,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ### New in v.33 (July, 2026)
 
 - 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.
+- Enhanced Roam Grid tables use the Grid transaction API when available, while ordinary Roam tables retain the native block fallback. See [the integration contract](docs/roam-grid-integration.md).
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 

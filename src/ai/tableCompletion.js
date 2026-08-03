@@ -16,6 +16,7 @@ import { AppToaster } from "../components/Toaster";
 import { extensionStorage } from "..";
 import { defaultAssistantCharacter } from "./prompts";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
+const { updateTableCell } = require("../utils/roamGridBridge.cjs");
 
 // The completion streams back one line per cell so we can fill cells progressively.
 const LINE_FORMAT_INSTRUCTIONS = `\n\nOUTPUT FORMAT — this is strict. Return ONLY the cells to fill, one per line, each line formatted EXACTLY as:
@@ -205,14 +206,13 @@ async function runTableCompletion({
     // formula dependencies, undo history, metadata, and serialized Roam writes
     // stay coherent. Native tables retain the existing direct-block fallback.
     writeQueue = writeQueue.then(() =>
-      roamGrid && c && window.roamGrid?.v1?.applyPatch
-        ? window.roamGrid.v1.applyPatch(tableBlockUid, {
-            op: "set",
-            row: c.row,
-            col: c.col,
-            value,
-          })
-        : window.roamAlphaAPI.updateBlock({ block: { uid, string: value } })
+      updateTableCell({
+        tableBlockUid,
+        coordinate: c,
+        uid,
+        value,
+        roamGrid,
+      })
     );
     spinners.remove(uid);
     if (c) revealCells(tableBlockUid, [{ row: c.row, col: c.col }]);
