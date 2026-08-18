@@ -145,6 +145,10 @@ const InstantButtons = ({
             target,
             selectedUids,
             retryInstruction,
+            // the prompt array doesn't carry the context: resend the one
+            // assembled for the initial request, otherwise it would be lost
+            context: content || undefined,
+            roamContext,
           })
       : aiCallback({
           model: model,
@@ -253,6 +257,9 @@ const InstantButtons = ({
         systemPrompt: llmConversationSystemPrompt,
         prompt,
         roamContext,
+        // the conversation array doesn't carry the context: resend the one
+        // assembled for the previous turn, otherwise it would be lost
+        context: content || undefined,
         style,
         isInConversation: true,
         target: "new",

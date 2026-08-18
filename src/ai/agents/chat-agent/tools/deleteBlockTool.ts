@@ -290,7 +290,12 @@ export const deleteBlockTool = tool(
     if (isBrowseMode) {
       // Default to main view if no location specified
       const useMainView = use_main_view || (!parent_uid && !page_title && !date);
-      const resolved = await resolveContainerUid({ parent_uid, page_title, date, use_main_view: useMainView });
+      const resolved = await resolveContainerUid({ parent_uid, page_title, date, use_main_view: useMainView,
+        // Honour the user's Target selector when nothing explicit was given.
+        // "context" is not a container, so only sidebar/main_view can apply.
+        chat_target: (config?.configurable?.chatTargets || []).find(
+          (t: string) => t !== "context",
+        ) });
       if ("error" in resolved) {
         return `⚠️ ${resolved.error}`;
       }

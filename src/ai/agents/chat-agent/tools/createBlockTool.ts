@@ -169,7 +169,12 @@ export const createBlockTool = tool(
     // Resolve the target UID using shared helper
     // Default to main view if no location specified
     const useMainView = use_main_view || (!parent_uid && !page_title && !date);
-    const resolved = await resolveContainerUid({ parent_uid, page_title, date, use_main_view: useMainView });
+    const resolved = await resolveContainerUid({ parent_uid, page_title, date, use_main_view: useMainView,
+        // Honour the user's Target selector when nothing explicit was given.
+        // "context" is not a container, so only sidebar/main_view can apply.
+        chat_target: (config?.configurable?.chatTargets || []).find(
+          (t: string) => t !== "context",
+        ) });
     if ("error" in resolved) {
       return `⚠️ ${resolved.error}`;
     }
@@ -385,6 +390,8 @@ export const createBlockTool = tool(
 → Inserts your content formatted to match the existing style
 
 ⚠️ NEVER provide markdown_content on the first call. You MUST see the existing outline first to match its formatting, structure, tags, and logic.
+
+EXCEPTION — skip Call 1 when the target's outline is ALREADY in your 'Available Context' (for instance because the user ticked Main view or Sidebar in the Context & target selector, or loaded the page). You can already see its style and its ((uid)) references, so calling for the outline again would just duplicate that content. In that case go straight to Call 2.
 
 Location options: parent_uid (block UID), page_title (page name), or date (for DNP). If no location is specified, defaults to the user's currently open page/block in the main view.
 smart_insertion: Set true to auto-find best location within the outline.`,

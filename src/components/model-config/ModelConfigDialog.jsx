@@ -104,12 +104,14 @@ export const ModelConfigDialog = ({
       const config = getModelConfig();
       const configCopy = JSON.parse(JSON.stringify(config)); // Deep copy
 
-      // Initialize defaultModel from extensionStorage if not in config
-      if (!configCopy.defaultModel) {
-        const storedDefault = extensionStorage.get("defaultModel");
-        if (storedDefault) {
-          configCopy.defaultModel = storedDefault;
-        }
+      // extensionStorage is the single source of truth for the default model:
+      // it's what the rest of the extension reads, and it can change outside
+      // this dialog (right-click in the models menu, or the automatic repair at
+      // load when the stored default is gone). Always re-sync from it, otherwise
+      // the config's own stale copy would be pushed back on the next auto-save.
+      const storedDefault = extensionStorage.get("defaultModel");
+      if (storedDefault) {
+        configCopy.defaultModel = storedDefault;
       }
 
       setWorkingConfig(configCopy);

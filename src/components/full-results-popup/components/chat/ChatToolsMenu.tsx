@@ -31,6 +31,10 @@ import {
   SkillInfo,
 } from "../../../../ai/agents/chat-agent/tools/skillsUtils";
 import {
+  detectColorHighlighter,
+  type ChStatus,
+} from "../../../../ai/agents/chat-agent/tools/colorHighlighter/detect";
+import {
   loadDepot,
   getEnabledTopicIds,
   setEnabledTopicIds,
@@ -96,6 +100,9 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
   const [selectedHelpTopics, setSelectedHelpTopics] = useState<HelpTopic[]>([]);
   const [isHelpSectionExpanded, setIsHelpSectionExpanded] = useState(false);
   const [isRefreshingDepot, setIsRefreshingDepot] = useState(false);
+
+  // Availability of the companion "Color Highlighter" Roam Depot extension
+  const [chStatus, setChStatus] = useState<ChStatus | null>(null);
 
   // Section expansion state
   const [isEditSectionExpanded, setIsEditSectionExpanded] = useState(false);
@@ -393,6 +400,14 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     }
   }, [isOpen]);
 
+  // Check whether the companion "Color Highlighter" extension is available.
+  // Forced refresh on each open, so a just-installed extension is detected.
+  useEffect(() => {
+    if (isOpen) {
+      setChStatus(detectColorHighlighter(true));
+    }
+  }, [isOpen]);
+
   // Load help topics from depot
   const loadHelpTopics = async () => {
     try {
@@ -517,6 +532,10 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
     const isAskYourGraph = toolName === "ask_your_graph";
     const isVectorSearch = toolName === "vector_search";
     const needsOpenAIKey = isVectorSearch && !OPENAI_API_KEY;
+    const isColorHighlighter = toolName === "color_highlighter";
+    // Warn, but never disable: the syntax is still written correctly without
+    // the companion extension, only the rendering is missing.
+    const chMissing = isColorHighlighter && !!chStatus && !chStatus.enabled;
     const isDisabled = disabled || needsOpenAIKey;
 
     return (
@@ -539,6 +558,47 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                 <span style={{ marginLeft: "6px" }}>
                   {formatToolName(toolName)}
                 </span>
+                {isColorHighlighter && (
+                  <Tooltip
+                    content={
+                      <>
+                        Requires Color Highlighter extension for the colors to
+                        render.
+                        <br></br>
+                        Colors are stored as text conventions in your blocks;
+                        <br></br>
+                        without the extension the tags stay visible and
+                        uncolored.
+                      </>
+                    }
+                    position="top"
+                    hoverOpenDelay={300}
+                  >
+                    <Icon
+                      icon="info-sign"
+                      size={10}
+                      style={{ marginLeft: 4, opacity: 0.5 }}
+                    />
+                  </Tooltip>
+                )}
+                {chMissing && (
+                  <Tooltip
+                    content={
+                      chStatus?.installed
+                        ? '"Color Highlighter" is installed but disabled — re-enable it in Roam Depot.'
+                        : 'Install "Color Highlighter" from Roam Depot to see the colors render.'
+                    }
+                    hoverOpenDelay={300}
+                  >
+                    <Tag
+                      minimal
+                      intent="warning"
+                      style={{ marginLeft: "8px", fontSize: "10px" }}
+                    >
+                      {chStatus?.installed ? "Ext. disabled" : "Ext. missing"}
+                    </Tag>
+                  </Tooltip>
+                )}
                 {isAskYourGraph && (
                   <Tooltip
                     content="Heavy operation: May take several seconds and use significant tokens"
@@ -964,9 +1024,11 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                               )}
                             </div>
                             <Tooltip
-                              content={db.provider === "local"
-                                ? "File upload not yet supported for local databases"
-                                : "Upload files to this database"}
+                              content={
+                                db.provider === "local"
+                                  ? "File upload not yet supported for local databases"
+                                  : "Upload files to this database"
+                              }
                               position="top"
                             >
                               <Button
@@ -982,7 +1044,10 @@ export const ChatToolsMenu: React.FC<ChatToolsMenuProps> = ({
                                   vectorStoreStatus === "uploading" &&
                                   activeDatabaseId === db.id
                                 }
-                                disabled={vectorStoreStatus !== "idle" || db.provider === "local"}
+                                disabled={
+                                  vectorStoreStatus !== "idle" ||
+                                  db.provider === "local"
+                                }
                               />
                             </Tooltip>
                             {!isDefault && (

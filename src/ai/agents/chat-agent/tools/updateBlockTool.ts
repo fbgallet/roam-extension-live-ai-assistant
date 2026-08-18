@@ -27,6 +27,45 @@ import {
 } from "../../../../utils/roamAPI";
 import { resolveContainerUid, evaluateOutline } from "./outlineEvaluator";
 import { truncateText } from "./toolUtils";
+import {
+  extractReferencedUids,
+  findDroppedReferences,
+  referenceLossMessage,
+} from "./referenceGuard";
+
+/**
+ * Guard: refuse a write that would silently drop block references / embeds.
+ * Returns the message to hand back to the model, or null when the write is safe.
+ */
+export function checkReferenceLoss(
+  blockUid: string,
+  newContent: string | undefined,
+  allowRemovingRefs?: boolean,
+): string | null {
+  if (newContent === undefined || allowRemovingRefs) return null;
+  const raw = getBlockContentByUid(blockUid) || "";
+  const dropped = findDroppedReferences(raw, newContent);
+  if (!dropped.length) return null;
+
+  // The edit was very likely meant for the text INSIDE the reference — that is
+  // what the model was shown. Hand it the referenced blocks with their own uids
+  // and raw content so it can retarget instead of guessing.
+  const behind = extractReferencedUids(raw)
+    .map((uid) => {
+      const content = getBlockContentByUid(uid);
+      return content
+        ? `((${uid})) currently reads: "${truncateText(content, 150)}"`
+        : null;
+    })
+    .filter(Boolean);
+
+  return (
+    referenceLossMessage(dropped, truncateText(raw, 300)) +
+    (behind.length
+      ? `\n\nIf your edit was actually meant for the text INSIDE a reference, update THAT block instead — it is where the text really lives: ${behind.join(" | ")}`
+      : "")
+  );
+}
 
 /**
  * Normalize a new_order value from LLM input.
@@ -151,6 +190,7 @@ interface BatchOperation {
   new_parent_page_title?: string;
   new_order?: "first" | "last" | "" | number;
   smart_move?: boolean;
+  allow_removing_refs?: boolean;
 }
 
 /**
@@ -197,6 +237,17 @@ async function executeBatchUpdate(
         reason:
           "new_content appears to contain a tree/outline with children. Each block must be updated individually with its own block_uid. Do not merge multiple blocks into one.",
       });
+      continue;
+    }
+
+    // Guard: never silently drop block references / embeds
+    const refLoss = checkReferenceLoss(
+      op.block_uid,
+      op.new_content,
+      (op as any).allow_removing_refs,
+    );
+    if (refLoss) {
+      skipped.push({ index: i, uid: op.block_uid, reason: refLoss });
       continue;
     }
 
@@ -413,6 +464,7 @@ export const updateBlockTool = tool(
       new_parent_page_title?: string;
       new_order?: "first" | "last" | number;
       smart_move?: boolean;
+      allow_removing_refs?: boolean;
       batch_operations?: BatchOperation[];
     },
     config,
@@ -441,6 +493,7 @@ export const updateBlockTool = tool(
       new_parent_page_title,
       new_order: rawNewOrder,
       smart_move = false,
+      allow_removing_refs,
     } = input;
     const new_order = normalizeOrder(rawNewOrder);
 
@@ -519,7 +572,12 @@ export const updateBlockTool = tool(
       // Return container outline for browsing
       // Default to main view if no location specified
       const useMainView = use_main_view || (!parent_uid && !page_title && !date);
-      const resolved = await resolveContainerUid({ parent_uid, page_title, date, use_main_view: useMainView });
+      const resolved = await resolveContainerUid({ parent_uid, page_title, date, use_main_view: useMainView,
+        // Honour the user's Target selector when nothing explicit was given.
+        // "context" is not a container, so only sidebar/main_view can apply.
+        chat_target: (config?.configurable?.chatTargets || []).find(
+          (t: string) => t !== "context",
+        ) });
       if ("error" in resolved) {
         return `⚠️ ${resolved.error}`;
       }
@@ -554,6 +612,16 @@ export const updateBlockTool = tool(
 
     if (!isExistingBlock(block_uid)) {
       return `⚠️ Block with UID "${block_uid}" was not found in your graph.`;
+    }
+
+    // Guard: never silently drop block references / embeds
+    const refLoss = checkReferenceLoss(
+      block_uid,
+      effectiveNewContent,
+      allow_removing_refs,
+    );
+    if (refLoss) {
+      return `⚠️ Update refused — ${refLoss}`;
     }
 
     // Build structured confirmation preview (using normalized values)
@@ -728,7 +796,9 @@ export const updateBlockTool = tool(
 **CALL 2 - APPLY** (mode: "apply" + block_uid + mutation fields):
 -> Provide block_uid with ONLY the fields you want to change.
 
-When the outline is already in your context (e.g., from add_to_context), skip Call 1 and go directly to batch_operations or Call 2 with the UIDs you can see.`,
+When the outline is already in your context (e.g., from add_to_context), skip Call 1 and go directly to batch_operations or Call 2 with the UIDs you can see.
+
+⚠️ BLOCK REFERENCES: the content you see has ((block refs)) and {{embeds}} expanded to their text, but blocks store them as-is. If you rewrite a block that contains one and drop it, the reference is destroyed. The tool refuses such edits and returns the RAW content plus the referenced blocks with their own uids. Two ways forward: rebuild new_content from the raw string keeping the reference verbatim, OR — if the text you meant to change actually lives inside the reference — update that block by its own uid instead.`,
     schema: z.object({
       mode: z
         .enum(["browse", "apply"])
@@ -811,6 +881,12 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
         .describe(
           "Use LLM to find the best location within the destination parent. Only applies when moving (new_parent_uid or new_parent_page_title is provided).",
         ),
+      allow_removing_refs: z
+        .boolean()
+        .optional()
+        .describe(
+          "Set true ONLY when the user asked to delete a ((block reference)) or {{embed}}. Otherwise edits that would drop one are refused.",
+        ),
       batch_operations: z
         .array(
           z.object({
@@ -848,6 +924,10 @@ When the outline is already in your context (e.g., from add_to_context), skip Ca
               .boolean()
               .optional()
               .describe("Use LLM to find best location within destination"),
+            allow_removing_refs: z
+              .boolean()
+              .optional()
+              .describe("Allow this edit to drop a ((ref))/{{embed}}"),
           }).passthrough(),
         )
         .max(20)

@@ -485,3 +485,125 @@
   color: #f5f8fa;
   border-color: rgba(167, 182, 194, 0.3);
 }
+
+/* ---------------------------------------------------------------
+   Context & target selector (chat input toolbar)
+   Two independent columns: what the agent READS, and where it ACTS.
+   --------------------------------------------------------------- */
+
+.chat-target-intro {
+  padding: 0 10px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.75;
+  max-width: 300px;
+  white-space: normal;
+}
+
+.chat-target-grid-header,
+.chat-target-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 44px 52px;
+  align-items: center;
+  column-gap: 4px;
+  padding: 2px 10px;
+}
+
+.chat-target-grid-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  opacity: 0.55;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(167, 182, 194, 0.25);
+  margin-bottom: 2px;
+}
+
+.chat-target-grid-header span:not(:first-child),
+.chat-target-grid-row .bp3-checkbox,
+.chat-target-grid-row .bp5-checkbox {
+  justify-self: center;
+}
+
+/* "Act on" column outside agent mode: the editing tools don't exist there, so
+   the column is dimmed alongside its disabled checkboxes. */
+.chat-target-grid-header .chat-target-act-off {
+  opacity: 0.45;
+}
+
+/* Blueprint wraps a tooltip target in an inline-block span; keep it from
+   collapsing the first grid column. */
+.chat-target-grid-row > .bp3-popover-target,
+.chat-target-grid-row > .bp5-popover-target,
+.chat-target-grid-row > .bp3-popover-wrapper,
+.chat-target-grid-row > .bp5-popover-wrapper {
+  display: block;
+  min-width: 0;
+}
+
+.chat-target-grid-row {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-radius: 3px;
+}
+
+.chat-target-grid-row:hover {
+  background: rgba(167, 182, 194, 0.15);
+}
+
+.chat-target-grid-label {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chat-target-note {
+  padding: 4px 10px 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  opacity: 0.65;
+  max-width: 300px;
+  white-space: normal;
+}
+
+.chat-target-pin {
+  padding: 4px 10px 2px;
+}
+
+.chat-target-pin .bp3-switch {
+  font-size: 12px;
+}
+
+.chat-target-note-warning {
+  opacity: 0.85;
+}
+
+/* Mini glyphs on the Context & target button: one per active source outside
+   the loaded context (page = main view, panel = sidebar). Red when that source
+   is a WRITE target, blue when it is only read. */
+.chat-target-button-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.chat-target-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  line-height: 0;
+  border-radius: 3px;
+  background: var(--bp-app-background, #fff);
+  box-shadow: 0 0 0 1px rgba(17, 20, 24, 0.12);
+  pointer-events: none;
+}
+
+.bp3-dark .chat-target-badge,
+.bp5-dark .chat-target-badge {
+  background: var(--bp-app-background, #30404d);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}

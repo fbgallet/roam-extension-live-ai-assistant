@@ -268,7 +268,7 @@ export const MODEL_REGISTRY = {
     provider: "Anthropic",
     contextLength: 1000000,
     maxOutput: 128000,
-    pricing: { input: 3, output: 15 },
+    pricing: { input: 2, output: 10 },
     capabilities: {
       thinking: true, // Supports thinking mode (toggled via UI)
       imageInput: true,
@@ -324,13 +324,13 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3.1-pro", "gemini-pro-latest"],
   },
 
-  "gemini-3.6-flash": {
-    id: "gemini-3.6-flash",
-    name: "Gemini 3.6 Flash",
+  "gemini-3.7-flash": {
+    id: "gemini-3.7-flash",
+    name: "Gemini 3.7 Flash",
     provider: "Google",
     contextLength: 1048576,
     maxOutput: 65536,
-    pricing: { input: 1.5, output: 7.5 },
+    pricing: { input: 0.75, output: 3.75 }, // through December 31, 2026, then x2
     capabilities: {
       thinking: true,
       imageInput: true,
@@ -342,7 +342,7 @@ export const MODEL_REGISTRY = {
     thinkingOnly: true,
     visibleByDefault: true,
     preferredDefault: true,
-    aliases: ["gemini-3-6-flash", "gemini-flash-latest"],
+    aliases: ["gemini-3-7-flash", "gemini-flash-latest"],
   },
 
   "gemini-3.5-flash-lite": {
@@ -453,7 +453,7 @@ export const MODEL_REGISTRY = {
     provider: "DeepSeek",
     contextLength: 1000000,
     maxOutput: 384000,
-    pricing: { input: 1.74, output: 3.48 },
+    pricing: { input: 1.32, output: 3.96 }, // on Peak hours, 50% Off Peak
     capabilities: {
       thinking: true,
       imageInput: false,
@@ -470,7 +470,7 @@ export const MODEL_REGISTRY = {
     provider: "DeepSeek",
     contextLength: 1000000,
     maxOutput: 384000,
-    pricing: { input: 0.14, output: 0.28 },
+    pricing: { input: 0.44, output: 1.32 }, // on Peak hours, 50% Off Peak
     capabilities: {
       thinking: true,
       imageInput: false,

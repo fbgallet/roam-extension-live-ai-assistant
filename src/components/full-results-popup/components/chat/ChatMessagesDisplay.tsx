@@ -2022,6 +2022,7 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                           update_block: "block update",
                           delete_block: "block deletion",
                           run_smartblock: "SmartBlock execution",
+                          color_highlighter: "color formatting",
                         }[pendingToolConfirmation.toolName] || "operation";
                       return opCount > 1
                         ? `batch ${label} (${opCount} blocks)`
@@ -2031,10 +2032,17 @@ export const ChatMessagesDisplay: React.FC<ChatMessagesDisplayProps> = ({
                   </span>
                 </div>
 
-                {/* Preview for update_block */}
-                {pendingToolConfirmation.toolName === "update_block" &&
+                {/* Preview for update_block and color_highlighter (same args shape) */}
+                {(pendingToolConfirmation.toolName === "update_block" ||
+                  pendingToolConfirmation.toolName === "color_highlighter") &&
                   pendingToolConfirmation.args?.operations && (
                     <div className="tool-confirmation-preview">
+                      {pendingToolConfirmation.args.target && (
+                        <div className="tool-confirmation-diff-row tool-confirmation-diff-location">
+                          Target: {pendingToolConfirmation.args.target} (not
+                          loaded in the context)
+                        </div>
+                      )}
                       {pendingToolConfirmation.args.operations.map(
                         (op: any, i: number) => (
                           <div key={i} className="tool-confirmation-diff-item">

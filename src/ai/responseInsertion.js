@@ -448,7 +448,7 @@ export const insertCompletion = async ({
         : chatRoles?.assistant || ""
       : "";
 
-  let content;
+  let content = "";
 
   if (!systemPrompt) systemPrompt = defaultAssistantCharacter;
 
@@ -499,37 +499,31 @@ export const insertCompletion = async ({
         "[QueryContext] Adding query results to context, length:",
         queryContext.length,
       );
-      if (isInConversation) {
-        // In conversation mode, context is not used for content assembly — append to systemPrompt
-        systemPrompt += "\n\n" + queryContext;
-      } else {
-        context = context ? context + "\n\n" + queryContext : queryContext;
-      }
+      context = context ? context + "\n\n" + queryContext : queryContext;
     } else {
       console.log("[QueryContext] No query results found");
     }
   }
 
-  if (!isRedone && !isInConversation) {
-    content =
-      context && !context.includes(contextInstruction)
-        ? contextInstruction +
-          userContextInstructions +
-          "\n\nThe input content to rely to or apply the next user prompt to, and eventually refered as 'context', is inserted below between '<begin>' and '<end>' tags (these tags are not a part of the context):\n<begin>" +
-          context +
-          "\n<end>"
-        : "";
-    // content = await verifyTokenLimitAndTruncate(model, prompt, content);
-  }
+  // The context is always assembled, whatever the mode: neither a conversation
+  // array nor a redone prompt carries it, so skipping it here would silently
+  // drop the context selected by the user. The only exception is handled below,
+  // once the conversation array is built (it can already embed the context).
+  if (context)
+    content = context.includes(contextInstruction)
+      ? // already assembled upstream (redo or next conversation turn resending it)
+        context
+      : contextInstruction +
+        userContextInstructions +
+        "\n\nThe input content to rely to or apply the next user prompt to, and eventually refered as 'context', is inserted below between '<begin>' and '<end>' tags (these tags are not a part of the context):\n<begin>" +
+        context +
+        "\n<end>";
+  // content = await verifyTokenLimitAndTruncate(model, prompt, content);
 
   // if (typeOfCompletion === "gptCompletion") {
   if (typeOfCompletion === "SelectionOutline" && !isRedone) {
     prompt = instructionsOnOutline + prompt;
   }
-
-  console.log("User prompt :>>", prompt);
-  console.log("SystemPrompt :>> ", systemPrompt);
-  console.log("Context :>> ", content);
 
   if (isRedone) {
     if (
@@ -576,6 +570,22 @@ export const insertCompletion = async ({
     }
   }
   // }
+
+  // getConversationArray() rebuilds the initial context as the first user turn:
+  // in that case only, sending it again as content would just duplicate it.
+  if (
+    isInConversation &&
+    content &&
+    context &&
+    typeof prompt?.[0]?.content === "string" &&
+    prompt[0].content.includes(context)
+  )
+    content = "";
+
+  console.log("User prompt :>>", prompt);
+  console.log("SystemPrompt :>> ", systemPrompt);
+  console.log("Context :>> ", content);
+
   const intervalId = await displaySpinner(targetUid);
 
   // console.log("command.slice(0, 16) :>> ", command.slice(0, 16));

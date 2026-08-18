@@ -1,3 +1,22 @@
+### v.35 (August, 2026) Color Highlighter tool & Context/target selector
+
+**New features**
+
+- 🎨 **Color Highlighter tool** in the Chat agent: **apply colors** to your notes — highlight, text color, underline, box, block background, card grid — or **extract content by color** ("extract and comment everything highlighted in blue"). It follows the conventions of the [Color Highlighter](https://github.com/fbgallet/roam-extension-color-highlighter) extension, required from Roam Depot for the colors to render (the tool tells you if it isn't installed or is disabled). Plain Roam formatting is handled too, so "clean up the highlights of this page" works whether they are colored or not. Blocks are edited in place, and content behind `((block refs))` and `{{embeds}}` can be colored as well — the edit is applied where the text really lives.
+- 🎯 **Context & target selector**, next to the chat input: choose which sources the agent **reads** (loaded context, main view, sidebar) and, independently, which ones it **acts on** with the edition tools — so you can read what you loaded while editing the page you are looking at. Main view and sidebar are re-read before each request, so they follow you when you change page or zoom. A pin keeps your setup across sessions; otherwise it resets to the loaded context. The agent no longer asks you to load the current page before editing it.
+
+**Updates**
+
+- New models support: Gemini 3.7 Flash (replacing 3.6 Flash).
+- Deepseek and Open AI models pricing update.
+
+**Fixed**
+
+- Context was broken on inline AI generation (via Context Menu) on multi-turn conversation.
+- A source was sent **twice** when it was already loaded in the context (a page both loaded in the context and open in the main view or sidebar was duplicated in full, children included).
+- **Editing a block containing a `((block reference))` or an `{{embed}}` silently destroyed it**: the AI is shown these resolved into their text, and wrote that text back in place of the reference. Such edits are now refused, with the raw content returned so the AI can retry — or target the referenced block instead.
+- **The chat froze when a single turn needed several confirmations**: the tools of one turn run in parallel, and their confirmation dialogs overwrote each other, leaving the agent waiting forever for an answer that could no longer be given. Dialogs are now shown one after the other. Stopping the generation properly ends such a pending request, and the tools already run stay listed on the interrupted message. "Always approve" now also takes effect immediately, instead of only from the next turn.
+
 ### v.34 (August, 2026) Attached files as input: Markdown, text & Office documents
 
 **New features**

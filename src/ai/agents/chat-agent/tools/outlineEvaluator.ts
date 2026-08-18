@@ -15,6 +15,7 @@ import {
   getPageNameByPageUid,
   getDNPTitleFromDate,
 } from "../../../../utils/roamAPI";
+import { getSidebarRootUids } from "../targetScope";
 import { getFlattenedContentFromTree } from "../../../dataExtraction";
 import { parseISODateLocal } from "./dateUtils";
 import { parseJsonFromLLMResponse } from "./toolUtils";
@@ -148,8 +149,10 @@ export async function resolveContainerUid(params: {
   page_title?: string;
   date?: string;
   use_main_view?: boolean;
+  /** The user's Target selector, used only when nothing explicit was given. */
+  chat_target?: string;
 }): Promise<ResolvedContainer | { error: string }> {
-  const { parent_uid, page_title, date, use_main_view } = params;
+  const { parent_uid, page_title, date, use_main_view, chat_target } = params;
 
   let targetUid: string | null = parent_uid || null;
   let resolvedPageTitle = page_title;
@@ -193,6 +196,29 @@ export async function resolveContainerUid(params: {
         };
       }
     }
+  }
+
+  // Nothing explicit was given: honour the user's Target selector. "sidebar"
+  // resolves to the first sidebar window; anything else falls through to the
+  // main view, which is also the historical default.
+  if (!targetUid && use_main_view && chat_target === "sidebar") {
+    const roots = getSidebarRootUids();
+    if (!roots.length) {
+      return {
+        error:
+          "The Target selector is set to Sidebar, but the right sidebar is empty. Ask the user to open something in the sidebar, or to pick another target.",
+      };
+    }
+    const uid = roots[0];
+    const pageName = getPageNameByPageUid(uid);
+    return {
+      uid,
+      description: pageName
+        ? `page [[${pageName}]] (sidebar)`
+        : "the first sidebar block",
+      isPage: !!pageName,
+      pageName: pageName || undefined,
+    };
   }
 
   // If use_main_view is true and no other target specified, use main view

@@ -15,6 +15,7 @@ import {
   MenuDivider,
   MenuItem,
   Switch,
+  Checkbox,
 } from "@blueprintjs/core";
 import {
   faMicrophone,
@@ -28,6 +29,13 @@ import { ChatMode } from "../../types/types";
 import ChatCommandSuggest from "./ChatCommandSuggest";
 import ChatPageAutocomplete from "./ChatPageAutocomplete";
 import { ChatToolsMenu } from "./ChatToolsMenu";
+import {
+  CHAT_TARGETS,
+  getSidebarRootUids,
+  targetsButtonLabel,
+  type ChatTarget,
+  type TargetConfig,
+} from "../../../../ai/agents/chat-agent/targetScope";
 import { CouncilConfigPanel } from "./CouncilConfigPanel";
 import { CHAT_TOOLS } from "../../../../ai/agents/chat-agent/tools/chatToolsRegistry";
 import { extractAllSkills } from "../../../../ai/agents/chat-agent/tools/skillsUtils";
@@ -53,6 +61,8 @@ import {
   isLiveTranscriptionAvailable,
   liveTranscription,
 } from "../../../../ai/liveTranscription";
+// Holds the .chat-target-* rules used by the Context & target selector below
+import "../../style/chatToolsMenu.css";
 
 interface ChatInputAreaProps {
   chatInput: string;
@@ -79,6 +89,13 @@ interface ChatInputAreaProps {
   onQueryPages: (query: string) => void;
   enabledTools: Set<string>;
   onToggleTool: (toolName: string) => void;
+  chatTargetConfig?: TargetConfig;
+  onToggleTarget?: (target: ChatTarget, column: "read" | "act") => void;
+  chatTargetsPinned?: boolean;
+  onToggleTargetsPin?: () => void;
+  onToggleFollowRefs?: () => void;
+  /** Number of blocks currently loaded in the chat context (icon state). */
+  contextCount?: number;
   isAgentMode: boolean;
   onToggleAgentMode: (enabled: boolean) => void;
   selectedStyle?: string;
@@ -130,6 +147,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onQueryPages,
   enabledTools,
   onToggleTool,
+  chatTargetConfig = { read: [], act: [] },
+  onToggleTarget,
+  chatTargetsPinned = false,
+  onToggleTargetsPin,
+  onToggleFollowRefs,
+  contextCount = 0,
   isAgentMode,
   onToggleAgentMode,
   selectedStyle = "Normal",
@@ -174,6 +197,45 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const [liveState, setLiveState] = useState(liveTranscription.getState());
   const [isAccessModeMenuOpen, setIsAccessModeMenuOpen] = useState(false);
   const [isStyleMenuOpen, setIsStyleMenuOpen] = useState(false);
+  const [isTargetMenuOpen, setIsTargetMenuOpen] = useState(false);
+  // Whether the right sidebar currently holds anything (drives the icon state).
+  // Probed when the menu opens, so it reflects the sidebar as it is right now.
+  const [sidebarHasContent, setSidebarHasContent] = useState(false);
+  useEffect(() => {
+    if (isTargetMenuOpen) setSidebarHasContent(getSidebarRootUids().length > 0);
+  }, [isTargetMenuOpen]);
+
+  /**
+   * Mini glyphs on the toolbar button, one per active source outside the loaded
+   * context: a small page for the main view, a small panel for the sidebar.
+   * Red when that source is a WRITE target, blue when it is only read.
+   *
+   * Outside agent mode no tool runs, so an "act" target is inert: such a source
+   * counts as read-only rather than being flagged red.
+   */
+  const targetBadges = (["main_view", "sidebar"] as ChatTarget[])
+    .filter(
+      (t) =>
+        (isAgentMode && chatTargetConfig.act.includes(t)) ||
+        chatTargetConfig.read.includes(t),
+    )
+    .map((t) => ({
+      value: t,
+      icon: CHAT_TARGETS.find((o) => o.value === t)?.icon || "document",
+      isAct: isAgentMode && chatTargetConfig.act.includes(t),
+    }));
+
+  const actsOutsideContext = targetBadges.some((b) => b.isAct);
+
+  /**
+   * A source is shown in blue when it actually has something to offer.
+   * The main view always does; the other two depend on their current state.
+   */
+  const targetHasContent = (target: ChatTarget): boolean => {
+    if (target === "main_view") return true;
+    if (target === "sidebar") return sidebarHasContent;
+    return contextCount > 0;
+  };
   const commandSuggestInputRef = useRef<HTMLInputElement>(null);
 
   const allStyles = [...BUILTIN_STYLES, ...customStyleTitles];
@@ -1055,6 +1117,217 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             permissions={{ contentAccess: chatAccessMode === "Full Access" }}
           />
         </div>
+        {/* Always available: choosing what the assistant READS needs no tool,
+            so this must not be gated on agent mode — only the "Act on" column
+            is, since editing tools only exist there. */}
+        <Tooltip
+          content={`Context & target — ${targetsButtonLabel(
+            chatTargetConfig,
+            isAgentMode,
+          )}`}
+          openOnTargetFocus={false}
+          isOpen={isTargetMenuOpen ? false : undefined}
+        >
+          <div className="full-results-chat-target-selector">
+            <Popover
+              isOpen={isTargetMenuOpen}
+              onInteraction={(next) => setIsTargetMenuOpen(next)}
+              content={
+                <Menu>
+                  <li className="bp3-menu-header">
+                    <h6 className="bp3-heading">Context &amp; target</h6>
+                  </li>
+                  <div className="chat-target-intro">
+                    <b>Read</b> adds the source to what the assistant sees.
+                    <br />
+                    <b>Act on</b> is where the editing tools (create / update /
+                    delete block, Color Highlighter) apply their changes when
+                    your request doesn't name a page or block — so you can read
+                    one source and write to another.
+                  </div>
+
+                  <div className="chat-target-grid-header">
+                    <span />
+                    <span>Read</span>
+                    <span className={!isAgentMode ? "chat-target-act-off" : ""}>
+                      Act on
+                    </span>
+                  </div>
+
+                  {CHAT_TARGETS.map((opt) => (
+                    <div className="chat-target-grid-row" key={opt.value}>
+                      {/* Tooltip wraps only the label: Blueprint renders an
+                            inline-block target wrapper, which would break the
+                            grid if it wrapped the whole row. */}
+                      <Tooltip
+                        content={
+                          <div style={{ maxWidth: 280 }}>{opt.description}</div>
+                        }
+                        hoverOpenDelay={400}
+                        position="left"
+                        // Opening the popover moves focus inside it, which
+                        // would pop the first row's tooltip unprompted.
+                        openOnTargetFocus={false}
+                      >
+                        <span className="chat-target-grid-label">
+                          <Icon
+                            icon={opt.icon as any}
+                            size={12}
+                            intent={
+                              targetHasContent(opt.value)
+                                ? "primary"
+                                : undefined
+                            }
+                            style={{
+                              marginRight: 6,
+                              opacity: targetHasContent(opt.value) ? 1 : 0.45,
+                            }}
+                          />
+                          {opt.label}
+                        </span>
+                      </Tooltip>
+                      <Checkbox
+                        checked={chatTargetConfig.read.includes(opt.value)}
+                        onChange={() => onToggleTarget?.(opt.value, "read")}
+                        style={{ marginBottom: 0 }}
+                      />
+                      <Checkbox
+                        checked={chatTargetConfig.act.includes(opt.value)}
+                        onChange={() => onToggleTarget?.(opt.value, "act")}
+                        disabled={!isAgentMode}
+                        style={{ marginBottom: 0 }}
+                      />
+                    </div>
+                  ))}
+
+                  {!isAgentMode && (
+                    <div className="chat-target-note">
+                      <Icon icon="info-sign" size={11} /> Enable{" "}
+                      <b>Agent mode</b> (wrench button) to let the assistant
+                      edit your graph and choose what it acts on. Reading works
+                      without it.
+                    </div>
+                  )}
+
+                  {isAgentMode && chatTargetConfig.act.length === 0 && (
+                    <div className="chat-target-note">
+                      No target ticked: the tools act on the loaded context, or
+                      on the main view when the context is empty (asking you
+                      once per session before touching anything you haven't
+                      loaded).
+                    </div>
+                  )}
+
+                  {isAgentMode &&
+                    chatTargetConfig.act.some(
+                      (t) => !chatTargetConfig.read.includes(t),
+                    ) && (
+                      <div className="chat-target-note chat-target-note-warning">
+                        <Icon icon="warning-sign" size={11} intent="warning" />{" "}
+                        Acting on something the agent can't read. Fine for
+                        targeted edits ("highlight the word X", "add a block
+                        here") — the tools find it themselves. Not enough for
+                        content-based requests ("highlight all the verbs"),
+                        which need Read ticked too.
+                      </div>
+                    )}
+
+                  <MenuDivider />
+                  <div className="chat-target-pin">
+                    <Tooltip
+                      content={
+                        <div style={{ maxWidth: 280 }}>
+                          What you see in a block includes the content behind
+                          its references and embeds, so the tools can edit it
+                          there too. Untick to restrict them to the text
+                          physically stored in the targeted blocks.
+                        </div>
+                      }
+                      hoverOpenDelay={400}
+                      position="left"
+                      openOnTargetFocus={false}
+                    >
+                      <Switch
+                        checked={chatTargetConfig.followRefs !== false}
+                        onChange={() => onToggleFollowRefs?.()}
+                        labelElement={
+                          <span>
+                            <Icon
+                              icon="link"
+                              size={12}
+                              intent={
+                                chatTargetConfig.followRefs !== false
+                                  ? "primary"
+                                  : undefined
+                              }
+                              style={{ marginRight: 6, opacity: 0.8 }}
+                            />
+                            Follow ((refs)) &amp; {"{{embeds}}"}
+                          </span>
+                        }
+                        style={{ marginBottom: 2 }}
+                      />
+                    </Tooltip>
+                  </div>
+
+                  <MenuDivider />
+                  <div className="chat-target-pin">
+                    <Switch
+                      checked={!!chatTargetsPinned}
+                      onChange={() => onToggleTargetsPin?.()}
+                      labelElement={
+                        <span>
+                          <Icon
+                            icon="pin"
+                            size={12}
+                            intent={chatTargetsPinned ? "primary" : undefined}
+                            style={{ marginRight: 6, opacity: 0.8 }}
+                          />
+                          Keep this setup
+                        </span>
+                      }
+                      style={{ marginBottom: 2 }}
+                    />
+                    <div className="chat-target-note">
+                      {chatTargetsPinned
+                        ? "This setup is kept when you reopen the panel."
+                        : "Resets to reading the loaded context when you reopen the panel."}
+                    </div>
+                  </div>
+                </Menu>
+              }
+              placement="top"
+            >
+              <span className="chat-target-button-wrap">
+                <Button
+                  minimal
+                  small
+                  className="full-results-chat-toolbar-button"
+                  icon="locate"
+                  intent={
+                    actsOutsideContext
+                      ? "danger"
+                      : chatTargetsPinned
+                        ? "primary"
+                        : undefined
+                  }
+                />
+                {targetBadges.length > 0 && (
+                  <span className="chat-target-badge">
+                    {targetBadges.map((b) => (
+                      <Icon
+                        key={b.value}
+                        icon={b.icon as any}
+                        size={9}
+                        intent={b.isAct ? "danger" : "primary"}
+                      />
+                    ))}
+                  </span>
+                )}
+              </span>
+            </Popover>
+          </div>
+        </Tooltip>
         <Tooltip
           content={`Style: ${selectedStyle}`}
           openOnTargetFocus={false}

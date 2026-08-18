@@ -78,6 +78,10 @@ const ChatAgentState = Annotation.Root({
   // Tool control
   toolsEnabled: Annotation<boolean>,
   enabledTools: Annotation<Set<string> | undefined>,
+  // Where tools ACT (distinct from the context they READ)
+  chatTargets: Annotation<string[] | undefined>,
+  followRefs: Annotation<boolean | undefined>,
+  outsideContextApprovedRef: Annotation<{ current: boolean } | undefined>,
   permissions: Annotation<{ contentAccess: boolean }>,
   chatTools: Annotation<any[]>,
   // Conversation state
@@ -1096,6 +1100,11 @@ const toolsWithCaching = async (state: typeof ChatAgentState.State) => {
       userChoiceCallback: state.userChoiceCallback,
       // Enabled tools set for checking tool availability
       enabledTools: state.enabledTools,
+      // Where tools should ACT (distinct from the context they READ), and the
+      // one-shot session approval for acting outside the loaded context.
+      chatTargets: state.chatTargets || [],
+      followRefs: state.followRefs !== false,
+      outsideContextApprovedRef: state.outsideContextApprovedRef,
     },
   };
 

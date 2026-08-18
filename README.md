@@ -18,16 +18,15 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### New in v.34 (August, 2026)
+### New in v.35 (August, 2026)
 
-- **New models support**: Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
-- 🆕 New **live transcription** (button next to the recorder): dictate and your words appear in the focused block — or in the Chat panel input — as you speak (billed per minute of streamed audio, ~$1/hour). Relying on `gpt-live-transcribe`, OpenAI API key required.
-- **Better voice transcription**: `gpt-transcribe` is the new default model for vocal notes (more accurate and cheaper than Whisper).
-- 🆕 **Attached files as input**, beyond `.pdf`: `.md`, `.txt`, `.csv`, `.json`, code files… are read and inserted in your request, so **any model** can use them (even local ones). `.docx`/`.pptx`/`.xlsx` work with **OpenAI models**.
-- Fixed **Gemini ignoring a .pdf from the context** at medium/high thinking level, and repaired `.pdf` support for OpenRouter, Groq, DeepSeek, Grok, custom endpoints, and Claude models with thinking enabled.
+- 🆕 **Color Highlighter tool** in the Chat agent: ask it to **highlight, underline, box or set a background color** on your blocks — or the other way round, to **extract content by color** ("extract and comment everything highlighted in blue"). It follows the conventions of the [Color Highlighter](https://github.com/fbgallet/roam-extension-color-highlighter) extension, to be installed from Roam Depot for the colors to render.
+- 🆕 **Context & target selector** in the Chat panel: choose which sources the agent **reads** (loaded context, main view, sidebar) and, independently, which ones it **acts on** — so it can edit the page you have open without you having to load it in the context first. Main view and sidebar are re-read at each request, so they follow you when you change page or zoom.
 
-### New in v.33 (July, 2026)
+### Major updates in v.33 & 34 (July & August, 2026)
 
+- 🆕 New **live transcription** (button next to the recorder): dictate and your words appear in the focused block — or in the Chat panel input — as you speak
+- 🆕 **Attached files as input**, beyond `.pdf`: `.md`, `.txt`, `.csv`, `.json`, code files… (**any model**), and `.docx`/`.pptx`/`.xlsx` only with **OpenAI models**.
 - 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
@@ -441,6 +440,8 @@ There are three privacy levels letting you decide what data may become accessibl
 - in "Full" mode, the agent may use the content and hierarchy of blocks and pages whenever needed for its search. Results can be more precise, but processing will take longer.
 
 In Chat panel, by principle, all blocks and pages loaded in the context will be read (at least partially) by the LLM. If you want to prevent any distant LLM to acccess block or page content, disable tools allowing to load pages or blocks and don't add context to the chat.
+
+⚠️ Since v.35, the **Context & target** selector (🎯 button next to the chat input) can add two more sources to what is sent: ticking **Read** for `Main view` or `Sidebar` sends the whole content of the page you have open, or of the sidebar, at **every** turn of the conversation — and it follows you when you change page. Only `Loaded context` is ticked by default, and the setup is reset when you reopen the panel unless you pin it. Ticking a source only in the **Act on** column does not send its content: the editing tools then read the blocks they need directly, without putting them in the prompt.
 
 Ask Your Graph offers many search options, from the simplest to the most complex. Just phrase your request in natural language (or use voice transcription!), the agent does the rest! But if you want to make the most of the agent’s capabilities, check out the detailed documentation: [See details here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#ask-to-your-graph).
 

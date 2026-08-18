@@ -135,6 +135,14 @@ ${conversationContext}
       (enabledTools.has("create_block") ||
         enabledTools.has("create_page") ||
         enabledTools.has("update_block"));
+    const isColorToolEnabled =
+      toolsEnabled && enabledTools.has("color_highlighter");
+    const isTargetAwareToolEnabled =
+      toolsEnabled &&
+      (isColorToolEnabled ||
+        enabledTools.has("create_block") ||
+        enabledTools.has("update_block") ||
+        enabledTools.has("delete_block"));
 
     // Get available skills if the tool is enabled
     const skillsList = isSkillsToolEnabled ? getFormattedSkillsList() : null;
@@ -194,6 +202,25 @@ The content you provide to these tools is in markdown format, automatically conv
           (needsKanban ? "\n" + roamKanbanFormat : "")
         );
       })()}`
+    : ""
+}
+${
+  isTargetAwareToolEnabled
+    ? `\n**Where to act: context vs. target**
+- The user has a "Context & target" selector next to the chat input, with three independent checkboxes: Context (the loaded results), Main view (the page or zoomed block open in Roam), Sidebar. Whatever is ticked is BOTH added to your 'Available Context' AND used as the target when a request does not name a page or block. With nothing ticked, tools fall back to the loaded context, or the main view when the context is empty.
+- The user's current MAIN VIEW is always a legitimate target and the tools can read it themselves. NEVER answer that you cannot act because a page "is not loaded in the context", and never ask the user to load their current page before you edit or format it. Just call the tool.
+- When the user says "highlight X here", "add this to the current page", "clean up this page" without naming a target, call the tool directly and let the target resolution do its job. Only name a page or block explicitly when the user did.
+- AVOID REDUNDANT BROWSING: if the target's content is already in your 'Available Context' (with its ((uid)) references), do NOT make a preliminary "browse" call to re-read the outline — you already have the uids and the surrounding style. Go straight to the mutating call. This applies to create_block's two-call pattern: skip the analysis call when the outline is already in context.`
+    : ""
+}
+${
+  isColorToolEnabled
+    ? `\n**Color formatting (Color Highlighter conventions):**
+When you CREATE content with create_block or create_page and the user asked for colors, embed the syntax directly in your markdown (do not call color_highlighter afterwards). To color content that ALREADY exists, use the \`color_highlighter\` tool instead.
+- Inline: the hidden tag \`#c:<color>\` then EXACTLY ONE SPACE then Roam markup — \`#c:green ^^highlight^^\`, \`#c:blue **colored text**\`, \`#c:red __underline__\`, \`#c:teal ~~inline box~~\`. The single space is mandatory.
+- Whole block: append a tag at the END of the block — \`#.bg-red\` (background), \`#.bg-ch-red\` (block + children), \`#.box-blue\` (border), \`#.box-ch-blue\`.
+- Colors: blue, fuchsia, green, orange, silver, red, teal, yellow, black. Lowercase = light/pastel, UPPERCASE = dark/vivid (\`#c:BLUE\`, \`#.bg-RED\`).
+- After a \`#c:\` tag, \`~~text~~\` means a colored box, NOT strikethrough.`
     : ""
 }`;
 

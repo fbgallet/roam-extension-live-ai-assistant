@@ -7,7 +7,7 @@ import {
   Icon,
   Dialog,
 } from "@blueprintjs/core";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import ReactDOM from "react-dom";
 import {
   availableModels,
@@ -214,9 +214,8 @@ export const StandaloneContextMenu = () => {
 
       isFirstBlock.current =
         getBlockOrderByUid(currentUid) === 0 ? true : false;
-      focusedBlockUid.current = !focusedBlockUid.current
-        ? currentUid
-        : focusedBlockUid;
+      // keep the uid provided by toggleContextMenu() if any, otherwise the focused one
+      if (!focusedBlockUid.current) focusedBlockUid.current = currentUid;
       focusedBlockContent.current =
         focusedBlockUid.current && currentBlockContent?.trim();
       selectedBlocks.current = selectionUids;
@@ -689,9 +688,15 @@ export const StandaloneContextMenu = () => {
     });
   };
 
+  // Keep a stable handleItemSelect (below) without freezing the state it relies
+  // on: without this ref, it would forever call the first render's handler, with
+  // stale isInConversation, additionalPrompt, rootUid...
+  const handleClickOnCommandRef = useRef(handleClickOnCommand);
+  handleClickOnCommandRef.current = handleClickOnCommand;
+
   // 🔧 COMPLETELY STABLE ITEM SELECT: No dependencies at all, use refs for state access
   const handleItemSelect = useCallback((command, e) => {
-    handleClickOnCommand({ e, command });
+    handleClickOnCommandRef.current({ e, command });
     // ✅ Don't close immediately for MCP commands - they handle their own closing
     if (!command.mcpType) {
       setIsOpen(false);

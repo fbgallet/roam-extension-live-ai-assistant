@@ -77,6 +77,12 @@ import { generateNLQuery } from "../../../../ai/agents/nl-query";
 import { generateNLDatomicQuery } from "../../../../ai/agents/nl-datomic-query";
 import { isFileExportRequest } from "../../../../ai/agents/chat-agent/multimodal-commands";
 import {
+  DEFAULT_TARGET_CONFIG,
+  loadTargetReadContext,
+  type ChatTarget,
+  type TargetConfig,
+} from "../../../../ai/agents/chat-agent/targetScope";
+import {
   AdvancedOptionsState,
   getDefaultAdvancedOptions,
   getActiveAdvancedParams,
@@ -270,9 +276,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     timestamp: number;
   } | null>(null);
   const [declineReasonInput, setDeclineReasonInput] = useState("");
-  const [alwaysApprovedTools, setAlwaysApprovedTools] = useState<Set<string>>(
-    new Set(),
-  );
+  // Mutated in place, NOT React state: the agent captures this Set in its config
+  // at invocation time, so an "always approve" given mid-turn must be visible to
+  // the very next tool call of the same turn.
+  const alwaysApprovedToolsRef = useRef<Set<string>>(new Set());
 
   // Ref to store the resolve function for pending confirmation Promise
   const pendingConfirmationResolveRef = useRef<
@@ -283,6 +290,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
       }) => void)
     | null
   >(null);
+
+  // LangGraph's ToolNode executes all tool calls of one assistant message in
+  // PARALLEL (Promise.all). Several tools can therefore request a confirmation
+  // (or a user choice) at the same time; with a single resolve ref the earlier
+  // request would be silently overwritten and its tool would await forever,
+  // freezing the whole turn. Requests are chained on this queue instead, so
+  // dialogs are shown one after the other.
+  const confirmationQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // Bumped when the user interrupts the turn: queued requests belonging to the
+  // interrupted run then auto-decline instead of popping a dialog afterwards.
+  const confirmationRunIdRef = useRef(0);
 
   // User choice state for inline choice forms (ask_user_choice tool + PDF export)
   const [pendingUserChoice, setPendingUserChoice] = useState<{
@@ -354,13 +372,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     declineReason?: string,
   ) => {
     if (pendingConfirmationResolveRef.current) {
-      // If "always approve" was selected, add the tool to the always-approved set
+      // If "always approve" was selected, add the tool to the always-approved
+      // set. Mutated in place so the agent's captured config sees it mid-turn.
       if (approved && alwaysApprove && pendingToolConfirmation) {
-        setAlwaysApprovedTools((prev) => {
-          const newSet = new Set(prev);
-          newSet.add(pendingToolConfirmation.toolName);
-          return newSet;
-        });
+        alwaysApprovedToolsRef.current.add(pendingToolConfirmation.toolName);
       }
 
       // Resolve the pending Promise
@@ -370,7 +385,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         declineReason: declineReason || undefined,
       });
 
-      // Clear the pending confirmation state
+      // Clear the pending confirmation state. Safe with the confirmation queue:
+      // the next queued request installs itself in a microtask, which runs
+      // AFTER this synchronous block.
       setPendingToolConfirmation(null);
       pendingConfirmationResolveRef.current = null;
       setDeclineReasonInput("");
@@ -739,8 +756,16 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
               ? `${partialContent}\n\n*— Generation stopped by user.*`
               : "*Generation stopped by user.*",
             timestamp: new Date(),
+            // Keep the tools already run this turn visible on the message,
+            // exactly as the success path does
+            toolUsage:
+              toolUsageHistoryRef.current.length > 0
+                ? [...toolUsageHistoryRef.current]
+                : undefined,
           };
           setChatMessages((prev) => [...prev, abortMessage]);
+          setToolUsageHistory([]);
+          toolUsageHistoryRef.current = [];
         } else {
           console.error("Auto-execution error:", error);
           const errorMessage: ChatMessage = {
@@ -1503,6 +1528,65 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     !!(initialEnabledTools && initialEnabledTools.size > 0),
   );
 
+  // Which sources the agent READS, and which it ACTS on. The two are
+  // independent, so the context can be the source while the main view is the
+  // target. An empty `act` list is not an error: tools fall back to the loaded
+  // context, or the main view when the context is empty.
+  //
+  // This is a sensitive setting (it decides where edits land), so it is only
+  // remembered across panel sessions when the user pins it.
+  const [chatTargetsPinned, setChatTargetsPinned] = useState<boolean>(
+    () => !!extensionStorage.get("chatTargetsPinned"),
+  );
+  const [chatTargetConfig, setChatTargetConfig] = useState<TargetConfig>(() => {
+    const stored = extensionStorage.get("chatTargetConfig");
+    if (
+      extensionStorage.get("chatTargetsPinned") &&
+      stored &&
+      Array.isArray((stored as any).read) &&
+      Array.isArray((stored as any).act)
+    ) {
+      return stored as TargetConfig;
+    }
+    return DEFAULT_TARGET_CONFIG;
+  });
+
+  // With no target ticked, acting outside the loaded context is confirmed once
+  // per session; ticking a target explicitly counts as authorisation.
+  const outsideContextApproved = useRef(false);
+
+  useEffect(() => {
+    extensionStorage.set("chatTargetsPinned", chatTargetsPinned);
+    // Only persist the setup itself while pinned, so an unpinned session always
+    // reopens on the default (read the loaded context, target resolved auto).
+    if (chatTargetsPinned) {
+      extensionStorage.set("chatTargetConfig", chatTargetConfig);
+    }
+  }, [chatTargetsPinned, chatTargetConfig]);
+
+  const handleToggleTarget = (target: ChatTarget, column: "read" | "act") => {
+    setChatTargetConfig((prev) => {
+      const isOn = prev[column].includes(target);
+      const toggled = isOn
+        ? prev[column].filter((t) => t !== target)
+        : [...prev[column], target];
+
+      // Acting on a source almost always requires seeing it (the agent has to
+      // know what to edit), so ticking "Act on" ticks "Read" too. Unticking
+      // "Read" afterwards is still allowed: it is a valid, cheaper mode for
+      // operations that don't need the content in the prompt.
+      if (column === "act" && !isOn) {
+        return {
+          read: prev.read.includes(target) ? prev.read : [...prev.read, target],
+          act: toggled,
+        };
+      }
+      return { ...prev, [column]: toggled };
+    });
+    // Changing the setup re-arms the one-shot confirmation
+    outsideContextApproved.current = false;
+  };
+
   // Override for conversation history used by processChatMessage (for retry/delete)
   const conversationHistoryOverrideRef = useRef<string[] | null>(null);
 
@@ -1650,8 +1734,9 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
     setIsStreaming(false);
     // Clear streaming content
     setStreamingContent("");
-    // Clear chat-scoped auto-approval settings
-    setAlwaysApprovedTools(new Set());
+    // Clear chat-scoped auto-approval settings (mutated in place: the same Set
+    // instance is captured by the agent config)
+    alwaysApprovedToolsRef.current.clear();
     // Clear persisted chat-specific state from window object
     delete (window as any).lastLoadedChatUid;
     delete (window as any).lastLoadedChatTitle;
@@ -2108,8 +2193,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             ? `${partialContent}\n\n*— Generation stopped by user.*`
             : "*Generation stopped by user.*",
           timestamp: new Date(),
+          // Keep the tools already run this turn visible on the message
+          toolUsage:
+            toolUsageHistoryRef.current.length > 0
+              ? [...toolUsageHistoryRef.current]
+              : undefined,
         };
         setChatMessages((prev) => [...prev, abortMessage]);
+        setToolUsageHistory([]);
+        toolUsageHistoryRef.current = [];
       } else {
         console.error("Retry error:", error);
         const errorMessage: ChatMessage = {
@@ -3041,8 +3133,15 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
             ? `${partialContent}\n\n*— Generation stopped by user.*`
             : "*Generation stopped by user.*",
           timestamp: new Date(),
+          // Keep the tools already run this turn visible on the message
+          toolUsage:
+            toolUsageHistoryRef.current.length > 0
+              ? [...toolUsageHistoryRef.current]
+              : undefined,
         };
         setChatMessages((prev) => [...prev, abortMessage]);
+        setToolUsageHistory([]);
+        toolUsageHistoryRef.current = [];
       } else {
         console.error("Chat error:", error);
         const errorMessage: ChatMessage = {
@@ -3065,6 +3164,29 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
   };
 
   const handleStopGeneration = () => {
+    // Invalidate queued confirmation/choice requests of the interrupted run,
+    // then unblock any dialog currently awaited: the abort signal only stops
+    // the streaming loop, so a tool left awaiting a dialog would keep the
+    // agent run hanging in the background forever.
+    confirmationRunIdRef.current++;
+    if (pendingConfirmationResolveRef.current) {
+      pendingConfirmationResolveRef.current({
+        approved: false,
+        declineReason: "Interrupted by user",
+      });
+      pendingConfirmationResolveRef.current = null;
+    }
+    setPendingToolConfirmation(null);
+    setDeclineReasonInput("");
+    if (pendingUserChoiceResolveRef.current) {
+      pendingUserChoiceResolveRef.current({
+        selectedOptions: {},
+        cancelled: true,
+      });
+      pendingUserChoiceResolveRef.current = null;
+    }
+    setPendingUserChoice(null);
+
     if (chatAbortRef.current) {
       chatAbortRef.current.abort();
     }
@@ -3662,7 +3784,37 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         advancedParams: getActiveAdvancedParams(advancedOptions),
       };
 
-      // Invoke the chat agent (race with abort if available)
+      // Selected sources (main view / sidebar) also feed what the agent READS.
+      // They are appended only for this invocation, so the results panel keeps
+      // showing what the user actually loaded.
+      const targetReadBlocks = await loadTargetReadContext(
+        chatTargetConfig.read,
+        (expandedResults || []).map((r: any) => r?.uid || r?.blockUid).filter(Boolean),
+      );
+      const contextForAgent = targetReadBlocks.length
+        ? [
+            ...(expandedResults || []),
+            ...targetReadBlocks.map((b) => ({
+              uid: b.uid,
+              // buildResultsContext() serialises `content` (chat-agent-prompts.ts);
+              // `text` alone would yield an entry with a uid and no block text.
+              content: b.text,
+              text: b.text,
+              pageTitle: b.pageTitle,
+              pageUid: b.pageUid,
+              blockUid: b.uid,
+              parentText: "",
+              ancestorTexts: [] as string[],
+              isPage: false,
+              addedByAgent: true,
+              addedAt: new Date().toISOString(),
+            })),
+          ]
+        : expandedResults;
+
+      console.log(
+        `[target] read=[${chatTargetConfig.read.join(", ")}] act=[${chatTargetConfig.act.join(", ")}], ${expandedResults?.length ?? 0} loaded + ${targetReadBlocks.length} from source(s)`,
+      );
       const agentInvocation = invokeChatAgent({
         model: modelForInvocation,
         userMessage: message,
@@ -3670,8 +3822,8 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         // Chat session ID for multi-turn image editing
         chatSessionId: chatSessionIdRef.current,
 
-        // Results context - pass the expanded results directly
-        resultsContext: expandedResults,
+        // Results context - loaded results plus the selected target sources
+        resultsContext: contextForAgent,
         resultsDescription,
 
         // Configuration
@@ -3681,6 +3833,10 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         enabledTools: effectiveEnabledTools,
         accessMode: chatAccessMode,
         isAgentMode: effectiveToolsEnabled,
+        // Where the tools ACT (reading is already folded into resultsContext)
+        chatTargets: chatTargetConfig.act,
+        followRefs: chatTargetConfig.followRefs !== false,
+        outsideContextApprovedRef: outsideContextApproved,
 
         // Permissions
         permissions: {
@@ -3953,6 +4109,33 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
                 ? `((${args.target_uid}))`
                 : args.date || "";
             details = `Run ${src} SmartBlock` + (target ? ` on ${target}` : "");
+          } else if (toolInfo.toolName === "color_highlighter") {
+            // Friendly summary for color_highlighter
+            const args = toolInfo.args || {};
+            if (args.action === "extract") {
+              const filters = [
+                args.colors?.length ? args.colors.join("/") : null,
+                args.formats?.length ? args.formats.join("/") : null,
+              ]
+                .filter(Boolean)
+                .join(" ");
+              const where = args.page_title
+                ? `[[${args.page_title}]]`
+                : args.block_uid
+                  ? `((${args.block_uid}))`
+                  : args.scope || "current context";
+              details = `Extract ${filters || "colored"} content from ${where}`;
+            } else {
+              const ops = args.operations || [];
+              const first = ops[0] || {};
+              const what = [first.variant === "dark" ? "dark" : null, first.color, first.format]
+                .filter(Boolean)
+                .join(" ");
+              details =
+                args.action === "remove"
+                  ? `Remove color formatting from ${ops.length} block(s)`
+                  : `Apply ${what || "color"} to ${ops.length} block(s)`;
+            }
           } else if (toolInfo.toolName === "select_results_by_criteria") {
             const args = toolInfo.args || {};
             const criteria = args.criteria_description || "custom criteria";
@@ -4066,37 +4249,66 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
           });
         },
 
-        // Tool confirmation callback for sensitive operations
-        toolConfirmationCallback: async (confirmationRequest: {
+        // Tool confirmation callback for sensitive operations.
+        // ToolNode runs the tool calls of one turn in parallel, so concurrent
+        // requests are serialized on confirmationQueueRef: each waits for the
+        // previous dialog to be answered before installing its own resolve.
+        toolConfirmationCallback: (confirmationRequest: {
           toolName: string;
           toolCallId: string;
           args: Record<string, any>;
         }) => {
-          // Create a Promise that will be resolved when user responds
-          return new Promise((resolve) => {
-            // Store the resolve function in the ref
-            pendingConfirmationResolveRef.current = resolve;
-
-            // Set the pending confirmation state to show UI
-            setPendingToolConfirmation({
-              toolName: confirmationRequest.toolName,
-              toolCallId: confirmationRequest.toolCallId,
-              args: confirmationRequest.args,
-              timestamp: Date.now(),
+          const runId = confirmationRunIdRef.current;
+          const request = confirmationQueueRef.current.then(() => {
+            // The turn was interrupted while this request sat in the queue:
+            // decline silently instead of popping a dialog for a dead run.
+            if (runId !== confirmationRunIdRef.current) {
+              return {
+                approved: false,
+                declineReason: "Interrupted by user",
+              };
+            }
+            return new Promise<{
+              approved: boolean;
+              alwaysApprove?: boolean;
+              declineReason?: string;
+            }>((resolve) => {
+              pendingConfirmationResolveRef.current = resolve;
+              setPendingToolConfirmation({
+                toolName: confirmationRequest.toolName,
+                toolCallId: confirmationRequest.toolCallId,
+                args: confirmationRequest.args,
+                timestamp: Date.now(),
+              });
             });
           });
+          confirmationQueueRef.current = request.catch(() => {});
+          return request;
         },
 
-        // User choice callback for ask_user_choice tool and PDF export
-        userChoiceCallback: async (choiceRequest: any) => {
-          return new Promise((resolve) => {
-            pendingUserChoiceResolveRef.current = resolve;
-            setPendingUserChoice({ ...choiceRequest, timestamp: Date.now() });
+        // User choice callback for ask_user_choice tool and PDF export.
+        // Shares the confirmation queue: only one interactive dialog at a time.
+        userChoiceCallback: (choiceRequest: any) => {
+          const runId = confirmationRunIdRef.current;
+          const request = confirmationQueueRef.current.then(() => {
+            if (runId !== confirmationRunIdRef.current) {
+              return { selectedOptions: {}, cancelled: true };
+            }
+            return new Promise<{
+              selectedOptions: Record<string, string>;
+              cancelled: boolean;
+            }>((resolve) => {
+              pendingUserChoiceResolveRef.current = resolve;
+              setPendingUserChoice({ ...choiceRequest, timestamp: Date.now() });
+            });
           });
+          confirmationQueueRef.current = request.catch(() => {});
+          return request;
         },
 
-        // Pass the set of always-approved tools
-        alwaysApprovedTools: alwaysApprovedTools,
+        // Pass the set of always-approved tools (stable, mutated in place so
+        // an "always approve" answered mid-turn applies to the next tool call)
+        alwaysApprovedTools: alwaysApprovedToolsRef.current,
 
         // Agent callbacks
         // Track tool-added results during this agent invocation
@@ -4417,6 +4629,17 @@ export const FullResultsChat: React.FC<FullResultsChatProps> = ({
         onQueryPages={queryAvailablePages}
         enabledTools={enabledTools}
         onToggleTool={handleToggleTool}
+        chatTargetConfig={chatTargetConfig}
+        onToggleTarget={handleToggleTarget}
+        chatTargetsPinned={chatTargetsPinned}
+        onToggleTargetsPin={() => setChatTargetsPinned((p) => !p)}
+        onToggleFollowRefs={() =>
+          setChatTargetConfig((prev) => ({
+            ...prev,
+            followRefs: prev.followRefs === false,
+          }))
+        }
+        contextCount={selectedResults?.length ?? 0}
         isAgentMode={chatMode === "agent"}
         onToggleAgentMode={(enabled) =>
           setChatMode(enabled ? "agent" : "simple")

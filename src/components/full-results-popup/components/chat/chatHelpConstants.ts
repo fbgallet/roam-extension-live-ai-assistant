@@ -25,7 +25,8 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 
 #### **Chat Agent: Intelligent Context & Tools**
 - **Agent/Chat Modes**: Switch between Agent mode (with tools) and simple Chat mode (no tools) anytime
-- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Vector Search, Get Help, Skills, Edition tools (create/update/delete blocks & pages, Run SmartBlock), Interaction tools (Ask User Choice, Random Pick)
+- **Powerful Tools**: Add To Context, Select By Criteria, Ask Your Graph, Vector Search, Color Highlighter (apply or extract colors), Get Help, Skills, Edition tools (create/update/delete blocks & pages, Run SmartBlock), Interaction tools (Ask User Choice, Random Pick)
+- **Context & target**: pick which sources the agent reads (loaded context, main view, sidebar) and, separately, which it acts on
 - **LLMs Council**: Iterative Refinement, Parallel Competition or Debate (LLMs play their own role or persona).
 - **Access Modes**: adaptative depth of pages/blocks in the context
   - 🛡️ **Balanced**: 50% context window, faster responses, adaptive depth (0-4 levels for blocks, 4 for pages)
@@ -54,18 +55,19 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.30 (May 2026) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.35 (August 2026) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
 - 💥 **Context menu**: Access all Live AI features from anywhere in Roam by just pressing 'Cmd-Ctrl-A' or 'Cmd+Right click': define context, select prompts, call natural language query agents, search on the web, generate images...
 - ✍️ **Custom prompts**: Create reusable prompts with \`#liveai/prompt\`
 - 🎨 **Custom styles**: Define output formats with \`#liveai/style\`
-- 💬 **Chat panel**: chat with your notes, linked references or any other query result
+- 💬 **Chat panel**: chat with your notes, linked references or any other query result — with an agent that can also **edit your graph**: create, update, delete blocks & pages, run SmartBlocks, apply or extract **colors** (Color Highlighter)
+- 🎯 **Context & target**: choose what the agent **reads** (loaded context, main view, sidebar) and, separately, what it **acts on**
 - 🛠️ **Live AI Skills**: Advanced automated workflows with instructions, resources and records ([doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))
 
 #### **Multimodal features**
-- 🎤 **Voice**: Dictate notes and commands, Text-to-speech
+- 🎤 **Voice**: Dictate notes and commands, live transcription, Text-to-speech
 - 🌁 **Image**: analysis and generation
 - 📑 **Files**: extract or analyze .pdf, .md, .txt, .csv, code files (and .docx/.pptx with OpenAI models)
 - 🕸️ **Web search**: Ask AI to find up-to-date or precise informations on the web!
@@ -83,29 +85,26 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "34";
+export const WHATS_NEW_VERSION = "35";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.34 (August 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.35 (August 2026) 🎉
 
-#### **New models**
-- Claude Opus 5, Gemini 3.6 Flash & 3.5 Flash Lite
+#### 🎨 **Color Highlighter tool**
+- Ask the agent to **color your notes** — highlight, text color, underline, box, block background — or to **extract content by color**: "extract and comment everything highlighted in blue"
+- Follows the **Color Highlighter** extension conventions (install it from Roam Depot for the colors to render). Plain Roam formatting works too, so "clean up the highlights of this page" applies to colored *and* uncolored ones
 
-#### **Attached files, not just PDFs**
-- Attach a \`.md\`, \`.txt\`, \`.csv\`, \`.json\` or code file in your prompt or context — its content is read and inserted in the request, so **any model can use it**, even local Ollama ones
-- \`.docx\`, \`.pptx\` and \`.xlsx\` work with **OpenAI models**; with other models a warning invites you to switch model or export to PDF
-- The \`PDF\` checkbox in the Context menu is now \`Files\` and covers every supported format
-- Fixed: **Gemini was ignoring a PDF from the context** at medium/high thinking level. PDF support also repaired for OpenRouter, Groq, DeepSeek, Grok, custom endpoints, and for Claude models with thinking enabled
+#### 🎯 **Context & target selector** (next to the chat input)
+- Choose which sources the agent **reads** — loaded context, main view, sidebar — and, independently, which it **acts on**: read what you loaded while editing the page you are looking at
+- Main view and sidebar are re-read at each request, so they follow you when you change page. Pin your setup to keep it across sessions
+- The agent no longer asks you to load the current page before editing it
 
-#### **Voice: new models & live dictation**
-- **\`gpt-transcribe\`** is the new default model for vocal notes: more accurate and cheaper than Whisper ($0.0045 vs $0.006/min), and its transcript now **streams** under the target block instead of a spinner
-- 🆕 **Live transcription**: a new button next to the recorder (with an OpenAI key) — dictate and your words are inserted **in the focused block as you speak**, press Enter or click another block and the rest goes there
-- In the chat, enable the live button in the "..." advanced options: your words fill the input, **you still validate with Enter**, and the mic pauses while the answer is generated, then waits for your voice
-- ⚠️ Billed per minute of streamed audio (~$1/hour), silences included — so the mic pauses by itself after a configurable silence, and only an actual voice wakes it up: your keyboard, a noise in the room, or anything happening while Roam isn't the focused window won't (sensitivity is adjustable in the settings)
+#### **Fixed**
+- **Editing a block containing a \`((block ref))\` or an \`{{embed}}\` destroyed it** — the AI sees them resolved into text and wrote that text back. Such edits are now refused instead
+- A source already loaded in the context is no longer sent twice
 
-#### In v.33: **AI-powered tables**
-- Click a Roam table's row/column handle (or Right-click its "+" add-row/add-col buttons) for new **Live AI: auto-complete** or update options
-- Fill only the empty or \`[bracketed]\` cells of a row/column, **update** filled cells, or **generate** whole new rows & columns — cells stream in one by one
-- Full control: pick the model, thinking effort & style, and add context (sidebar, current page, [[pages]], or inline notes written after \`{{[[table]]}}\`)
+#### In v.34: **attached files & live dictation**
+- Attach \`.md\`, \`.txt\`, \`.csv\`, \`.json\` or code files in your prompt or context (\`.docx\`/\`.pptx\` with OpenAI models); the \`PDF\` checkbox became \`Files\`
+- 🆕 **Live transcription**: dictate and your words are inserted in the focused block as you speak — also available in the chat input
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
@@ -144,6 +143,8 @@ export const CHAT_TIPS = [
   "**Run SmartBlocks from chat**: Ask the agent to run any SmartBlock workflow — e.g., 'run Sb Daily on today's page'. It supports relative dates (today, tomorrow...) and verifies the SmartBlock exists before running.",
   "**Vector search**: Enable the vector_search tool to search your Roam graph and uploaded files by meaning, not just keywords. Choose a free local provider (all in your browser) or OpenAI's vector store for uploaded documents.",
   "**Force any tool with /**: Type / followed by a tool name (e.g., /vector, /ask_your_graph, /run_smartblock) to use it for a single turn — even if it's disabled in your tools menu. Your persistent settings stay unchanged.",
+  "**Context & target**: the 🎯 button next to the chat input separates what the agent **reads** from what it **acts on** — read your loaded context while the edition tools apply to the page you have open, or the sidebar. Main view and sidebar are re-read at each request, so they follow you when you change page. Pin the setup to keep it across sessions.",
+  "**Colors in your notes**: with the Color Highlighter tool enabled (and the extension of the same name installed from Roam Depot), ask the agent to highlight, underline, box or set a background color on your blocks — or the other way round: 'extract and comment everything highlighted in blue'.",
   "**Dictate your prompts**: enable 'Live transcription button' in the '...' advanced options to speak your message instead of typing it. The text fills the input as you speak, you still validate it with Enter, and the mic pauses while the answer is generated, then waits for your voice to start again. Billed per minute of streamed audio (~$1/hour), so it also pauses on silence.",
 ];
 

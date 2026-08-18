@@ -34,6 +34,9 @@ export interface ChatAgentOptions {
   commandPrompt?: string;
   toolsEnabled?: boolean;
   enabledTools?: Set<string>; // List of enabled tool names
+  chatTargets?: string[]; // Sources tools read and act on: context | main_view | sidebar
+  followRefs?: boolean; // Let tools reach content behind ((refs)) and {{embeds}}
+  outsideContextApprovedRef?: { current: boolean }; // one-shot session approval
   accessMode?: "Balanced" | "Full Access";
   isAgentMode?: boolean;
 
@@ -186,6 +189,9 @@ export async function invokeChatAgent(
     commandPrompt: options.commandPrompt,
     toolsEnabled: options.toolsEnabled ?? true,
     enabledTools: options.enabledTools,
+    chatTargets: options.chatTargets || [],
+    followRefs: options.followRefs !== false,
+    outsideContextApprovedRef: options.outsideContextApprovedRef,
     accessMode: options.accessMode || "Balanced",
     isAgentMode: options.isAgentMode ?? false,
 

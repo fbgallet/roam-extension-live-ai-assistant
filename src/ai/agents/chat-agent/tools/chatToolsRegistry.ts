@@ -17,6 +17,7 @@ import { askUserChoiceTool } from "./askUserChoiceTool";
 import { randomPickTool } from "./randomPickTool";
 import { vectorSearchTool } from "./vectorSearchTool";
 import { runSmartBlockTool } from "./runSmartBlockTool";
+import { colorHighlighterTool } from "./colorHighlighterTool";
 
 export type ToolCategory = "context" | "edit" | "skills" | "interaction";
 
@@ -73,6 +74,13 @@ function getChatToolsRegistry(): Record<string, ChatToolInfo> {
       category: "context",
       description:
         "Search across indexed Roam graph and uploaded files using semantic vector search. Finds content by meaning, not just keywords. Requires vector store setup from tools menu.",
+    },
+    color_highlighter: {
+      tool: colorHighlighterTool,
+      securityLevel: "secure",
+      category: "context",
+      description:
+        "Extract content by color (e.g. all passages highlighted in blue) or apply colors to Roam content (highlight, text color, underline, box, block background). Follows the Color Highlighter extension conventions. Requires the Color Highlighter extension from Roam Depot for the colors to render.",
     },
     // Edit tools
     create_block: {
@@ -175,6 +183,13 @@ export const CHAT_TOOLS: Record<string, ChatToolInfo> = {
     category: "context",
     description:
       "Search across indexed Roam graph and uploaded files using semantic vector search. Finds content by meaning, not just keywords. Requires vector store setup from tools menu.",
+  },
+  color_highlighter: {
+    tool: null,
+    securityLevel: "secure",
+    category: "context",
+    description:
+      "Extract content by color (e.g. all passages highlighted in blue) or apply colors to Roam content (highlight, text color, underline, box, block background). Follows the Color Highlighter extension conventions. Requires the Color Highlighter extension from Roam Depot for the colors to render.",
   },
   // Edit tools
   create_block: {

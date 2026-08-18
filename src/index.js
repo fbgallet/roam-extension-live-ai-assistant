@@ -248,6 +248,15 @@ export function getInitialDefaultModel() {
 export function setDefaultModel(str = getInitialDefaultModel()) {
   defaultModel = str;
   extensionStorage.set("defaultModel", str);
+  // The V2 model config keeps its own copy of the default model (it's what the
+  // ModelConfigDialog displays and writes back on every auto-save). Without this
+  // write-through, a default set from the models menu or auto-repaired at load
+  // would be silently resurrected by the dialog the next time the user touches
+  // any model setting, re-triggering the "no longer available" toast forever.
+  const config = getModelConfig();
+  if (config.defaultModel !== str) {
+    saveModelConfig({ ...config, defaultModel: str });
+  }
   chatRoles = getRolesFromString(
     extensionStorage.get("chatRoles"),
     defaultModel.includes("first") ? undefined : defaultModel,
@@ -456,17 +465,23 @@ export async function addToConversationHistory({
 }) {
   if (!uid && !selectedUids) return;
   let conversationHistory = extensionStorage.get("conversationHistory") || [];
-  if (conversationHistory.find((conv) => conv.uid === uid)) return;
-  // conversation storage is limited to 30
-  if (conversationHistory.length > 30) {
-    conversationHistory.shift(); // Remove the first (oldest) element
-  }
-  const params = { uid: uid };
+  // an already recorded conversation is updated, not ignored, so that a context
+  // added or changed in the course of the conversation is properly stored
+  const params = conversationHistory.find((conv) => conv.uid === uid) || {
+    uid: uid,
+  };
+  const isNewConversation = !conversationHistory.includes(params);
   if (command) params.command = command;
   if (style && style !== "Normal") params.style = style;
   if (selectedUids) params.selectedUids = selectedUids;
   if (context) params.context = context;
-  conversationHistory.push(params);
+  if (isNewConversation) {
+    // conversation storage is limited to 30
+    if (conversationHistory.length > 30) {
+      conversationHistory.shift(); // Remove the first (oldest) element
+    }
+    conversationHistory.push(params);
+  }
   await extensionStorage.set("conversationHistory", conversationHistory);
 }
 
