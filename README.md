@@ -22,13 +22,13 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 - 🆕 **Color Highlighter tool** in the Chat agent: ask it to **highlight, underline, box or set a background color** on your blocks — or the other way round, to **extract content by color** ("extract and comment everything highlighted in blue"). It follows the conventions of the [Color Highlighter](https://github.com/fbgallet/roam-extension-color-highlighter) extension, to be installed from Roam Depot for the colors to render.
 - 🆕 **Context & target selector** in the Chat panel: choose which sources the agent **reads** (loaded context, main view, sidebar) and, independently, which ones it **acts on** — so it can edit the page you have open without you having to load it in the context first. Main view and sidebar are re-read at each request, so they follow you when you change page or zoom.
+- Enhanced Roam Grid tables use the Grid transaction API when available, while ordinary Roam tables retain the native block fallback. See [the integration contract](docs/roam-grid-integration.md).
 
 ### Major updates in v.33 & 34 (July & August, 2026)
 
 - 🆕 New **live transcription** (button next to the recorder): dictate and your words appear in the focused block — or in the Chat panel input — as you speak
 - 🆕 **Attached files as input**, beyond `.pdf`: `.md`, `.txt`, `.csv`, `.json`, code files… (**any model**), and `.docx`/`.pptx`/`.xlsx` only with **OpenAI models**.
 - 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.
-- Enhanced Roam Grid tables use the Grid transaction API when available, while ordinary Roam tables retain the native block fallback. See [the integration contract](docs/roam-grid-integration.md).
 
 (See complete changelog [here](https://github.com/fbgallet/roam-extension-speech-to-roam/blob/main/CHANGELOG.md))
 
