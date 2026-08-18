@@ -16,6 +16,7 @@ import { AppToaster } from "../components/Toaster";
 import { extensionStorage } from "..";
 import { defaultAssistantCharacter } from "./prompts";
 import { hasTrueBooleanKey } from "../utils/dataProcessing";
+const { updateTableCell } = require("../utils/roamGridBridge.cjs");
 
 // The completion streams back one line per cell so we can fill cells progressively.
 const LINE_FORMAT_INSTRUCTIONS = `\n\nOUTPUT FORMAT — this is strict. Return ONLY the cells to fill, one per line, each line formatted EXACTLY as:
@@ -176,6 +177,7 @@ async function runTableCompletion({
   model,
   cleanupUids,
   coords,
+  roamGrid = false,
   thinkingEnabled,
   boldUids,
 }) {
@@ -187,6 +189,7 @@ async function runTableCompletion({
   );
   const boldSet = new Set((boldUids || []).map(stripUidParens));
   const appliedUids = new Set();
+  let writeQueue = Promise.resolve();
 
   // Write one cell as soon as its "((uid)): value" line has fully arrived.
   const applyCell = (rawUid, rawValue) => {
@@ -198,9 +201,20 @@ async function runTableCompletion({
       value = `**${value}**`;
     }
     appliedUids.add(uid);
-    window.roamAlphaAPI.updateBlock({ block: { uid, string: value } });
-    spinners.remove(uid);
     const c = coordByUid.get(uid);
+    // Enhanced tables must go through Roam Grid so its optimistic model,
+    // formula dependencies, undo history, metadata, and serialized Roam writes
+    // stay coherent. Native tables retain the existing direct-block fallback.
+    writeQueue = writeQueue.then(() =>
+      updateTableCell({
+        tableBlockUid,
+        coordinate: c,
+        uid,
+        value,
+        roamGrid,
+      })
+    );
+    spinners.remove(uid);
     if (c) revealCells(tableBlockUid, [{ row: c.row, col: c.col }]);
   };
 
@@ -239,6 +253,7 @@ async function runTableCompletion({
         if (m) applyCell(m[1], m[2]);
       });
     }
+    await writeQueue;
 
     if (appliedUids.size) {
       AppToaster.show({
@@ -343,7 +358,7 @@ export async function autoCompleteTableRow({
     graphContext,
   });
   const coords = targetCells.map((c) => ({ row: rowIndex, col: c.col, uid: c.uid }));
-  await runTableCompletion({ tableBlockUid, prompt, systemPrompt, model, coords, thinkingEnabled });
+  await runTableCompletion({ tableBlockUid, prompt, systemPrompt, model, coords, roamGrid: model2d.roamGrid, thinkingEnabled });
 }
 
 /**
@@ -427,7 +442,7 @@ export async function autoCompleteTableColumn({
     graphContext,
   });
   const coords = targetCells.map((c) => ({ row: c.row, col: colIndex, uid: c.uid }));
-  await runTableCompletion({ tableBlockUid, prompt, systemPrompt, model, coords, thinkingEnabled });
+  await runTableCompletion({ tableBlockUid, prompt, systemPrompt, model, coords, roamGrid: model2d.roamGrid, thinkingEnabled });
 }
 
 /**
@@ -511,6 +526,7 @@ export async function generateTableRows({
     model,
     cleanupUids: createdRowUids,
     coords,
+    roamGrid: model2d.roamGrid,
     thinkingEnabled,
   });
 }
@@ -595,6 +611,7 @@ export async function generateTableColumns({
     model,
     cleanupUids,
     coords,
+    roamGrid: model2d.roamGrid,
     thinkingEnabled,
     boldUids,
   });

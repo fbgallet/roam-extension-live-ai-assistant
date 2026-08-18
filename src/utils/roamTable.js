@@ -4,6 +4,7 @@ import {
   getBlockOrderByUid,
   resolveReferences,
 } from "./roamAPI";
+const { getEnhancedTableModel } = require("./roamGridBridge.cjs");
 
 // A Roam table is a block whose string is `{{[[table]]}}`. Its children encode the
 // grid: each direct child (sorted by :block/order) is a ROW, and within a row the
@@ -63,6 +64,13 @@ function getColumnChain(rowBlock) {
  * is { uid, content }. Returns null if the block can't be read.
  */
 export function getTableModel(tableBlockUid) {
+  // Roam Grid keeps enhanced native tables backed by these same block UIDs, but
+  // its public model is already normalized and includes cells that may be
+  // temporarily virtualized out of the DOM. Prefer that model when available;
+  // fall back to the native outline reader when Roam Grid is absent or the table
+  // has not opted in.
+  const enhanced = getEnhancedTableModel(tableBlockUid, resolveReferences);
+  if (enhanced) return enhanced;
   const root = getTreeByUid(tableBlockUid)?.[0];
   if (!root) return null;
   const rowBlocks = sortByOrder(root.children);
