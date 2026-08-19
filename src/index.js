@@ -139,6 +139,7 @@ export let maxImagesNb;
 export let openAiCustomModels = [];
 export let openRouterModelsInfo = [];
 export let openRouterModels = [];
+export let componentVisibility;
 export let isComponentAlwaysVisible;
 export let isComponentVisible;
 export let resImages;
@@ -519,6 +520,46 @@ export async function incrementCommandCounter(commandId) {
   await extensionStorage.set("commandCounter", commandUsage);
 }
 
+export const VISIBILITY_OPTIONS = ["Always", "Mobile only", "No"];
+
+// The setting was historically a boolean switch (true = always visible).
+const normalizeVisibilitySetting = (stored) => {
+  if (stored === true) return "Always";
+  if (stored === false) return "No";
+  return VISIBILITY_OPTIONS.includes(stored) ? stored : "Always";
+};
+
+const isMobileContext = () =>
+  window.roamAlphaAPI.platform.isMobile ||
+  window.roamAlphaAPI.platform.isMobileApp ||
+  window.innerWidth < 500;
+
+// Effective visibility of the button on the current device
+const resolveComponentVisibility = (setting) =>
+  setting === "Always" || (setting === "Mobile only" && isMobileContext());
+
+// Align the mounted button with the current setting & device
+const applyComponentVisibility = () => {
+  const shouldBeVisible = resolveComponentVisibility(componentVisibility);
+  if (shouldBeVisible === isComponentAlwaysVisible) return;
+  isComponentAlwaysVisible = shouldBeVisible;
+  // the button can be temporarily shown/hidden via command palette
+  if (shouldBeVisible === isComponentVisible) return;
+  isComponentVisible = shouldBeVisible;
+  unmountComponent(position);
+  mountComponent(position);
+  toggleComponentVisibility();
+};
+
+// In "Mobile only" mode the viewport width is part of the mobile test
+// (responsive design mode, split screen...), so it has to be watched.
+let visibilityResizeTimeout = null;
+const onWindowResize = () => {
+  if (componentVisibility !== "Mobile only") return;
+  clearTimeout(visibilityResizeTimeout);
+  visibilityResizeTimeout = setTimeout(applyComponentVisibility, 200);
+};
+
 function getPanelConfig() {
   const panelConfig = {
     tabTitle: "Live AI",
@@ -752,21 +793,13 @@ function getPanelConfig() {
         id: "visibility",
         name: "Button visibility",
         description:
-          "Button always visible (if not, you have to use commande palette or hotkeys, except on Mobile)",
+          "When the button isn't displayed, you have to use command palette or hotkeys to trigger Live AI (not available on Mobile)",
         action: {
-          type: "switch",
+          type: "select",
+          items: VISIBILITY_OPTIONS,
           onChange: (evt) => {
-            isComponentAlwaysVisible = !isComponentAlwaysVisible;
-            unmountComponent(position);
-            mountComponent(position);
-            if (
-              window.innerWidth >= 500 &&
-              ((isComponentAlwaysVisible && !isComponentVisible) ||
-                (!isComponentAlwaysVisible && isComponentVisible))
-            ) {
-              toggleComponentVisibility();
-              isComponentVisible = isComponentAlwaysVisible;
-            }
+            componentVisibility = normalizeVisibilitySetting(evt);
+            applyComponentVisibility();
           },
         },
       },
@@ -1454,11 +1487,12 @@ export default {
 
     // await extensionAPI.settings.panel.create(panelConfig);
     // get settings from setting panel
-    if (extensionAPI.settings.get("visibility") === null)
-      await extensionAPI.settings.set("visibility", true);
-    isComponentAlwaysVisible = extensionAPI.settings.get("visibility");
-    isComponentVisible =
-      window.innerWidth < 500 ? true : isComponentAlwaysVisible;
+    const storedVisibility = extensionAPI.settings.get("visibility");
+    componentVisibility = normalizeVisibilitySetting(storedVisibility);
+    if (storedVisibility !== componentVisibility)
+      await extensionAPI.settings.set("visibility", componentVisibility);
+    isComponentAlwaysVisible = resolveComponentVisibility(componentVisibility);
+    isComponentVisible = isComponentAlwaysVisible;
     if (extensionAPI.settings.get("position") === null)
       await extensionAPI.settings.set("position", "left sidebar");
     position =
@@ -1762,7 +1796,7 @@ export default {
     if (extensionAPI.settings.get("chatEnabledTools") === null)
       await extensionAPI.settings.set("chatEnabledTools", ["add_to_context"]);
 
-    createContainer();
+    createContainer(position);
 
     // Initialize OpenAI library:
     // - If exclusive mode: all OpenAI API calls use custom endpoint
@@ -1821,6 +1855,7 @@ export default {
 
     mountComponent(position);
     if (!isComponentAlwaysVisible) toggleComponentVisibility();
+    window.addEventListener("resize", onWindowResize);
 
     // Initialize window.LiveAI if it doesn't exist (don't overwrite existing functions)
     if (!window.LiveAI) window.LiveAI = {};
@@ -1848,6 +1883,9 @@ export default {
     // Close the microphone & the Realtime socket first: they would otherwise
     // outlive the extension (and keep being billed).
     await stopLiveTranscription();
+
+    window.removeEventListener("resize", onWindowResize);
+    clearTimeout(visibilityResizeTimeout);
 
     unmountComponent(position);
     removeContainer(position);

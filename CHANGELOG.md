@@ -9,6 +9,7 @@
 
 - New models support: Gemini 3.7 Flash (replacing 3.6 Flash).
 - Deepseek and Open AI models pricing update.
+- The "Button visibility" setting becomes a three-option selector: `Always` (default), `Mobile only` — for those who use Live AI mainly to dictate on their phone — and `No`. Your previous choice is preserved, and the mode follows the window width, so it applies immediately in a narrow window without reloading.
 
 **Fixed**
 

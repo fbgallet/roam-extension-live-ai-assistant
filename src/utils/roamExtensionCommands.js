@@ -20,6 +20,7 @@ import {
 import { specificContentPromptBeforeTemplate } from "../ai/prompts";
 import {
   displayModelConfigDialog,
+  getComponentContainer,
   setAsOutline,
   simulateClick,
   simulateClickOnRecordingButton,
@@ -67,8 +68,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         button.click();
         if (
           !isComponentVisible &&
-          document.getElementsByClassName("speech-to-roam")[0]?.style
-            .display !== "none"
+          getComponentContainer()?.style.display !== "none"
         )
           toggleComponentVisibility();
       } else simulateClickOnRecordingButton();
@@ -115,8 +115,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
         button.click();
         if (
           !isComponentVisible &&
-          document.getElementsByClassName("speech-to-roam")[0]?.style
-            .display !== "none"
+          getComponentContainer()?.style.display !== "none"
         )
           toggleComponentVisibility();
       } else simulateClickOnRecordingButton();

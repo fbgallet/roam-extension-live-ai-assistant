@@ -102,8 +102,19 @@ export function unmountComponent(position) {
   if (node) ReactDOM.unmountComponentAtNode(node);
 }
 
+// The mounted container, whatever its position. Never rely on the bare
+// ".speech-to-roam" class: a stray container can share it.
+export function getComponentContainer() {
+  return (
+    document.querySelector(`.speech-to-roam-container-${position}`) ||
+    document.querySelector(
+      ".speech-to-roam-container-top, .speech-to-roam-container-left",
+    )
+  );
+}
+
 export function toggleComponentVisibility() {
-  let componentElt = document.getElementsByClassName("speech-to-roam")[0];
+  const componentElt = getComponentContainer();
   if (!componentElt) return;
   componentElt.style.display === "none"
     ? (componentElt.style.display = "inherit")
@@ -128,11 +139,7 @@ export const simulateClick = (
 
 export function simulateClickOnRecordingButton() {
   const button = document.getElementsByClassName("speech-record-button")[0];
-  if (
-    !isComponentVisible &&
-    document.getElementsByClassName("speech-to-roam")[0]?.style.display ===
-      "none"
-  ) {
+  if (!isComponentVisible && getComponentContainer()?.style.display === "none") {
     toggleComponentVisibility();
     if (position === "left") window.roamAlphaAPI.ui.leftSidebar.open();
   }
@@ -174,10 +181,11 @@ export function createContainer(position) {
 }
 
 export function removeContainer(position) {
-  const container = document.querySelector(
-    `.speech-to-roam-container-${position}`,
-  );
-  if (container) container.remove();
+  document
+    .querySelectorAll(
+      `.speech-to-roam-container-${position}, .speech-to-roam-container-undefined`,
+    )
+    .forEach((container) => container.remove());
 }
 
 export const displaySpinner = async (targetUid) => {
