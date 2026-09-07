@@ -1,3 +1,39 @@
 {
-  "models": {}
+  "models": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT 6 Astra",
+      "provider": "OpenAI",
+      "contextLength": 1050000,
+      "maxOutput": 128000,
+      "pricing": { "input": 10, "output": 50 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "visibleByDefault": true,
+      "thinkingDefault": true,
+      "aliases": ["GPT 6", "GPT Astra"]
+    },
+    "claude-fable-5": {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "provider": "Anthropic",
+      "contextLength": 1000000,
+      "maxOutput": 128000,
+      "pricing": { "input": 10, "output": 50 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "thinkingDefault": true,
+      "thinkingOnly": true,
+      "visibleByDefault": true,
+      "aliases": ["claude-fable", "claude fable", "fable-latest"]
+    }
+  }
 }
