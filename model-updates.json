@@ -34,6 +34,26 @@
       "thinkingOnly": true,
       "visibleByDefault": true,
       "aliases": ["claude-fable", "claude fable", "fable-latest"]
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "provider": "Google",
+      "contextLength": 1048576,
+      "maxOutput": 65536,
+      "pricing": { "input": 0.75, "output": 3.75 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true,
+        "videoInput": true,
+        "audioInput": true
+      },
+      "thinkingOnly": true,
+      "visibleByDefault": true,
+      "preferredDefault": true,
+      "aliases": ["gemini-3-7-flash", "gemini-flash-latest"]
     }
   }
 }
