@@ -44,6 +44,8 @@ NB: Prices may have changed (generally decreased) since the last update of this 
 | GPT Image 1 mini\*        | text: $2, image: $2.50    | $8.00                      |
 | GPT Image 1.5\*           | text: $5, image: $8       | $32.00                     |
 | GPT Image 2\*             | text: $5, image: $8       | $30.00                     |
+| GPT Image 2.5 Sunburst\*  | text: $5, image: $8       | $30.00                     |
+| GPT Image 2.5 Flare\*     | text: $5, image: $8       | $30.00                     |
 | **Anthropic**             |                           |                            |
 | claude-haiku-4-5-20251001 | $1.00                     | $5.00                      |
 | Claude Sonnet 5           | $3.00                     | $15.00                     |

@@ -1,3 +1,10 @@
+### v.36 (September, 2026)
+
+**Updates**
+
+- New models support: GPT 6 Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare
+- GPT Image 2.5 models: `quality: xhigh` and `quality: max` can be requested directly in the image prompt
+
 ### v.35 (August, 2026) Color Highlighter tool & Context/target selector
 
 **New features**

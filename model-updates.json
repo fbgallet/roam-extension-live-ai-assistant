@@ -17,7 +17,30 @@
       "thinkingDefault": true,
       "aliases": ["GPT 6", "GPT Astra"]
     },
-    "claude-fable-5": {
+    "claude-opus-5-5": {
+      "id": "claude-opus-5-5",
+      "name": "Claude Opus 5.5",
+      "provider": "Anthropic",
+      "contextLength": 1000000,
+      "maxOutput": 128000,
+      "pricing": { "input": 4, "output": 20 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "thinkingDefault": true,
+      "visibleByDefault": true,
+      "aliases": [
+        "claude-5-5-opus",
+        "opus-5-5",
+        "claude opus",
+        "claude opus 5.5",
+        "opus-latest"
+      ]
+    },
+    "claude-fable-5-1": {
       "id": "claude-fable-5-1",
       "name": "Claude Fable 5.1",
       "provider": "Anthropic",
@@ -54,6 +77,34 @@
       "visibleByDefault": true,
       "preferredDefault": true,
       "aliases": ["gemini-3-7-flash", "gemini-flash-latest"]
+    },
+    "gpt-image-2.5-sunburst": {
+      "id": "gpt-image-2.5-sunburst",
+      "name": "GPT Image 2.5 Sunburst",
+      "provider": "OpenAI",
+      "pricing": { "input": 5, "inputImage": 8, "output": 30 },
+      "capabilities": {
+        "imageInput": true,
+        "imageOutput": true,
+        "editImage": true
+      },
+      "modelType": "image-generation",
+      "visibleByDefault": true,
+      "aliases": ["gpt-image-sunburst", "gpt-image-latest"]
+    },
+    "gpt-image-2.5-flare": {
+      "id": "gpt-image-2.5-flare",
+      "name": "GPT Image 2.5 Flare",
+      "provider": "OpenAI",
+      "pricing": { "input": 5, "inputImage": 8, "output": 30 },
+      "capabilities": {
+        "imageInput": true,
+        "imageOutput": true,
+        "editImage": true
+      },
+      "modelType": "image-generation",
+      "visibleByDefault": true,
+      "aliases": ["gpt-image-flare"]
     }
   }
 }

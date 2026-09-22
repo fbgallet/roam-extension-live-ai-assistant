@@ -662,7 +662,7 @@ function parseNanoBananaParams(prompt) {
 
 /**
  * Parse OpenAI image generation parameters from user prompt
- * Extracts: size (portrait/landscape/square), quality (low/medium/high),
+ * Extracts: size (portrait/landscape/square), quality (low/medium/high/xhigh/max),
  * format (png/webp/jpeg), compression (0-100), background (transparent/opaque)
  */
 function parseOpenAIImageParams(prompt) {
@@ -677,8 +677,9 @@ function parseOpenAIImageParams(prompt) {
     cleanedPrompt = cleanedPrompt.replace(sizeMatch[0], "").trim();
   }
 
-  // Extract quality: low, medium, high
-  const qualityRegex = /\bquality[:\s]*(low|medium|high)\b/i;
+  // Extract quality: low, medium, high, xhigh, max
+  // (xhigh & max are only supported by GPT Image 2.5 models, see imageGeneration())
+  const qualityRegex = /\bquality[:\s]*(low|medium|high|xhigh|max)\b/i;
   const qualityMatch = prompt.match(qualityRegex);
   if (qualityMatch) {
     config.quality = qualityMatch[1].toLowerCase();
@@ -1452,7 +1453,7 @@ export async function imageGeneration(
     }
 
     // Parse image generation options from prompt
-    // Supported: size (portrait/landscape/square), quality (low/medium/high),
+    // Supported: size (portrait/landscape/square), quality (low/medium/high/xhigh/max),
     // format (png/webp/jpeg), compression (0-100), background (transparent/opaque)
     const { prompt: cleanedPrompt, config: imageConfig } =
       parseOpenAIImageParams(prompt);
@@ -1461,6 +1462,15 @@ export async function imageGeneration(
     let openaiQuality = quality;
     if (imageConfig.quality) {
       openaiQuality = imageConfig.quality;
+    }
+    // "xhigh" and "max" quality levels are only available on GPT Image 2.5
+    // models (Sunburst & Flare); clamp to "high" for older models
+    const supportsExtendedQuality = model.startsWith("gpt-image-2.5");
+    if (
+      !supportsExtendedQuality &&
+      (openaiQuality === "xhigh" || openaiQuality === "max")
+    ) {
+      openaiQuality = "high";
     }
 
     // Map size parameter

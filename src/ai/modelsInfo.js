@@ -317,16 +317,23 @@ export const updateTokenCounter = (model, { input_tokens, output_tokens }) => {
     input_tokens += additionalTokens || 0;
   }
 
-  // specific count for gpt-image-1
-  if (originalModel.includes("gpt-image-1")) {
-    //console.log("input_tokens :>> ", input_tokens);
+  // specific count for OpenAI GPT Image models (gpt-image-1*, 2, 2.5 Sunburst/Flare):
+  // input_tokens is an `input_tokens_details` object { text_tokens, image_tokens },
+  // image tokens are converted to text-token equivalents according to their pricing
+  if (
+    originalModel.includes("gpt-image") &&
+    input_tokens &&
+    typeof input_tokens === "object"
+  ) {
     const detailled_input_tokens = input_tokens;
-    input_tokens = 0;
+    const pricing = modelsPricing[originalModel];
+    const imageRatio =
+      pricing?.input_image && pricing?.input
+        ? pricing.input_image / pricing.input
+        : 1;
     input_tokens =
-      detailled_input_tokens["text_tokens"] +
-      detailled_input_tokens["image_tokens"] *
-        (modelsPricing[originalModel]["input_image"] /
-          modelsPricing[originalModel]["input"]);
+      (detailled_input_tokens["text_tokens"] || 0) +
+      (detailled_input_tokens["image_tokens"] || 0) * imageRatio;
   }
   // console.log("input_tokens :>> ", input_tokens);
 

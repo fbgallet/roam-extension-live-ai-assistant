@@ -33,6 +33,24 @@
 
 export const MODEL_REGISTRY = {
   // ==================== OpenAI Models ====================
+  "gpt-6-astra": {
+    id: "gpt-6-astra",
+    name: "GPT 6 Astra",
+    provider: "OpenAI",
+    contextLength: 1050000,
+    maxOutput: 128000,
+    pricing: { input: 10, output: 50 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    visibleByDefault: true,
+    thinkingDefault: true,
+    aliases: ["GPT 6", "GPT Astra"],
+  },
+
   "gpt-5.6-sol": {
     id: "gpt-5.6-sol",
     name: "GPT 5.6 Sol",
@@ -161,6 +179,36 @@ export const MODEL_REGISTRY = {
   },
 
   // OpenAI Image Generation Models
+  "gpt-image-2.5-sunburst": {
+    id: "gpt-image-2.5-sunburst",
+    name: "GPT Image 2.5 Sunburst",
+    provider: "OpenAI",
+    pricing: { input: 5, inputImage: 8, output: 30 },
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+      editImage: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: ["gpt-image-sunburst", "gpt-image-latest"],
+  },
+
+  "gpt-image-2.5-flare": {
+    id: "gpt-image-2.5-flare",
+    name: "GPT Image 2.5 Flare",
+    provider: "OpenAI",
+    pricing: { input: 5, inputImage: 8, output: 30 },
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+      editImage: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: ["gpt-image-flare"],
+  },
+
   "gpt-image-2": {
     id: "gpt-image-2",
     name: "GPT Image 2",
@@ -172,7 +220,7 @@ export const MODEL_REGISTRY = {
       editImage: true,
     },
     modelType: "image-generation",
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
@@ -202,14 +250,14 @@ export const MODEL_REGISTRY = {
       // editImage: true,
     },
     modelType: "image-generation",
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: [],
   },
 
   // ==================== Anthropic Models ====================
-  "claude-fable-5": {
-    id: "claude-fable-5",
-    name: "Claude Fable 5",
+  "claude-fable-5-1": {
+    id: "claude-fable-5-1",
+    name: "Claude Fable 5.1",
     provider: "Anthropic",
     contextLength: 1000000,
     maxOutput: 128000,
@@ -226,6 +274,47 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-fable", "claude fable", "fable-latest"],
   },
 
+  "claude-fable-5": {
+    id: "claude-fable-5",
+    name: "Claude Fable 5",
+    provider: "Anthropic",
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 10, output: 50 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    thinkingOnly: true,
+    visibleByDefault: false,
+    aliases: ["claude fable 5"],
+  },
+
+  "claude-opus-5-5": {
+    id: "claude-opus-5-5",
+    name: "Claude Opus 5.5",
+    provider: "Anthropic",
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 4, output: 20 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    aliases: [
+      "claude-5-5-opus",
+      "claude opus",
+      "claude opus 5.5",
+      "opus-latest",
+    ],
+  },
   "claude-opus-5": {
     id: "claude-opus-5",
     name: "Claude Opus 5",
@@ -240,8 +329,8 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
-    aliases: ["claude-5-opus", "claude opus", "claude opus 5", "opus-latest"],
+    visibleByDefault: false,
+    aliases: ["claude-5-opus"],
   },
 
   "claude-opus-4-6": {
@@ -324,6 +413,27 @@ export const MODEL_REGISTRY = {
     aliases: ["gemini-3.1-pro", "gemini-pro-latest"],
   },
 
+  "gemini-3.8-flash": {
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
+    provider: "Google",
+    contextLength: 1048576,
+    maxOutput: 65536,
+    pricing: { input: 0.75, output: 3.75 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+      videoInput: true,
+      audioInput: true,
+    },
+    thinkingOnly: true,
+    visibleByDefault: true,
+    preferredDefault: true,
+    aliases: ["gemini-3-8-flash", "gemini-flash-latest"],
+  },
+
   "gemini-3.7-flash": {
     id: "gemini-3.7-flash",
     name: "Gemini 3.7 Flash",
@@ -340,9 +450,9 @@ export const MODEL_REGISTRY = {
       audioInput: true,
     },
     thinkingOnly: true,
-    visibleByDefault: true,
-    preferredDefault: true,
-    aliases: ["gemini-3-7-flash", "gemini-flash-latest"],
+    visibleByDefault: false,
+    preferredDefault: false,
+    aliases: ["gemini-3-7-flash"],
   },
 
   "gemini-3.5-flash-lite": {
