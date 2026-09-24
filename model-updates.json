@@ -17,6 +17,40 @@
       "thinkingDefault": true,
       "aliases": ["GPT 6", "GPT Astra"]
     },
+    "gpt-6-sol": {
+      "id": "gpt-6-sol",
+      "name": "GPT 6 Sol",
+      "provider": "OpenAI",
+      "contextLength": 1050000,
+      "maxOutput": 128000,
+      "pricing": { "input": 2, "output": 10 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "visibleByDefault": true,
+      "thinkingDefault": true,
+      "aliases": ["GPT 6 Sol", "GPT Sol"]
+    },
+    "gpt-6-luna": {
+      "id": "gpt-6-luna",
+      "name": "GPT 6 Luna",
+      "provider": "OpenAI",
+      "contextLength": 1050000,
+      "maxOutput": 128000,
+      "pricing": { "input": 0.1, "output": 0.5 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "visibleByDefault": true,
+      "thinkingDefault": true,
+      "aliases": ["GPT 6 Luna", "GPT Luna"]
+    },
     "claude-opus-5-5": {
       "id": "claude-opus-5-5",
       "name": "Claude Opus 5.5",
