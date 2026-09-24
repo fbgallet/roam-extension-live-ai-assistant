@@ -330,6 +330,8 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           contextDepth,
           includeRefs,
         });
+        // {append}, {replace} or {replace-}: the response goes in the host block itself
+        const isHostTarget = targetUid === sbContext.currentUid;
 
         // If target is {chat}, open chat popup with auto-execution
         if (shouldOpenChat) {
@@ -356,6 +358,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
           instantModel: instantModel || model,
           typeOfCompletion: "gptCompletion",
           isInConversation: false,
+          isFirstLineInTarget: isHostTarget,
         });
         return [toAppend];
       },
@@ -670,8 +673,8 @@ const getInfosFromSmartBlockParams = async ({
         );
         if (contextObj && contextObj.roamContext) {
           roamContext = contextObj.roamContext;
-          // Add pageViewUid if page context is used
-          if (roamContext.page) {
+          // Add pageViewUid only for a bare {page} (current page), not page(title)
+          if (roamContext.page && !roamContext.pageArgument?.length) {
             roamContext.pageViewUid = getPageUidByBlockUid(currentUid);
           }
         } else {

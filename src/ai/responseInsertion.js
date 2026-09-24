@@ -410,6 +410,7 @@ export const insertCompletion = async ({
   includePdfInContext = false,
   includeQueryInContext = false,
   thinkingEnabled = undefined,
+  isFirstLineInTarget = false,
 }) => {
   console.log(
     "[QueryContext] insertCompletion called, includeQueryInContext:",
@@ -640,6 +641,7 @@ export const insertCompletion = async ({
       content: aiResponse,
       target,
       isTitleCompatible,
+      isFirstLineInTarget,
     });
   }
   setTimeout(() => {
@@ -654,6 +656,7 @@ export async function insertStructuredAIResponse({
   format = undefined,
   target = undefined,
   isTitleCompatible = false,
+  isFirstLineInTarget = false, // first line in target block, the rest as its children
 }) {
   if (Array.isArray(content)) content = content.join("\n\n");
   const splittedResponse = splitParagraphs(content);
@@ -666,7 +669,10 @@ export async function insertStructuredAIResponse({
       await createChildBlock(targetUid, content, format?.open, format?.heading);
     else await addContentToBlock(targetUid, content);
   else {
-    if (isTitleToAdd && isTitleCompatible) {
+    if (
+      (isTitleToAdd && isTitleCompatible) ||
+      (isFirstLineInTarget && !/^\s*(```|\$\$)/.test(content))
+    ) {
       const [firstLine, ...otherLines] = content.split("\n");
       await addContentToBlock(targetUid, firstLine.trim());
       content = otherLines.join("\n").trim();

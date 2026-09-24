@@ -552,18 +552,13 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         return;
       }
 
-      // Calculate how many new characters were typed after the slash
-      // by comparing current length to the length when slash was triggered
-      const newCharsCount = value.length - textLengthAtSlashTrigger;
+      // The query is the text between the slash and the cursor
+      // (pre-existing text after the cursor is ignored)
+      const queryEnd = cursorPosition ?? value.length;
 
-      // The query is only the NEW characters typed after the slash (not pre-existing text)
-      const queryText = value.substring(
-        slashStartIndex + 1,
-        slashStartIndex + 1 + newCharsCount,
-      );
-
-      // Check if a space was typed in the query
-      if (queryText.includes(" ")) {
+      // Close if a space was typed in the query, or the cursor moved before the slash
+      const queryText = value.substring(slashStartIndex + 1, queryEnd);
+      if (queryEnd <= slashStartIndex || /\s/.test(queryText)) {
         setSlashCommandMode(false);
         setIsCommandSuggestOpen(false);
         setSlashStartIndex(-1);
@@ -584,49 +579,28 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     }
 
     // Not in slash mode - detect new slash trigger
-    // Only trigger when user just typed a "/"
-    const lastSlashIndex = value.lastIndexOf("/");
-    const hasSlash = lastSlashIndex !== -1;
+    // Only trigger when user just typed a single "/" (never on paste, which
+    // inserts several characters at once)
+    const slashIndex = (cursorPosition ?? value.length) - 1;
+    const justTypedSlash =
+      value.length === chatInput.length + 1 && value.charAt(slashIndex) === "/";
 
-    if (hasSlash) {
-      // Extract the part before the last "/"
-      const beforeSlash = value.substring(0, lastSlashIndex);
-      // Extract the part after the last "/" up to the next space (this is the potential command query)
-      const afterSlash = value.substring(lastSlashIndex + 1);
-      const nextSpaceIndex = afterSlash.indexOf(" ");
-      // The query is only the text between "/" and the next space (or end of string)
-      const slashQueryText =
-        nextSpaceIndex !== -1
-          ? afterSlash.substring(0, nextSpaceIndex)
-          : afterSlash;
+    if (justTypedSlash) {
+      const beforeSlash = value.substring(0, slashIndex);
 
       // Check if this is likely a URL (has :// before it)
-      const isLikelyUrl = beforeSlash.includes("://");
+      const isLikelyUrl = /:\/\/\S*$/.test(beforeSlash);
 
-      // Check if the character before slash is alphanumeric (part of a word)
-      const charBeforeSlash =
-        lastSlashIndex > 0 ? beforeSlash.charAt(beforeSlash.length - 1) : "";
-      const isPartOfWord = /[a-zA-Z0-9]/.test(charBeforeSlash);
+      // Check if the character before slash is a letter or digit (part of a word, any script)
+      const charBeforeSlash = beforeSlash.charAt(beforeSlash.length - 1);
+      const isPartOfWord = /[\p{L}\p{N}]/u.test(charBeforeSlash);
 
-      // Check if there's a space immediately after the slash (user typed "/ ")
-      const hasSpaceImmediatelyAfterSlash = afterSlash.startsWith(" ");
-
-      // Only trigger slash mode if:
-      // 1. Not a URL
-      // 2. Not part of a word (slash at start or after whitespace/punctuation)
-      // 3. No space immediately after the slash
-      // 4. Query is short enough to be a fresh slash command (not pasted long text)
-      const isLikelyFreshSlash = slashQueryText.length <= 20;
-
-      if (
-        !isLikelyUrl &&
-        !isPartOfWord &&
-        !hasSpaceImmediatelyAfterSlash &&
-        isLikelyFreshSlash
-      ) {
+      // Only trigger slash mode if not a URL and not part of a word
+      // (slash at start or after whitespace/punctuation)
+      if (!isLikelyUrl && !isPartOfWord) {
         setSlashCommandMode(true);
         setIsCommandSuggestOpen(true);
-        setSlashStartIndex(lastSlashIndex);
+        setSlashStartIndex(slashIndex);
         setSlashQuery(""); // Start with empty query - user just typed "/"
         setTextLengthAtSlashTrigger(value.length); // Remember length at trigger time
       }

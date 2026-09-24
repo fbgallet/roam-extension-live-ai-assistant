@@ -1090,7 +1090,11 @@ export const getContextFromSbCommand = async (
           const arg = extractNormalizedUidFromRef(item);
           arg && contextObj.roamContext.blockArgument.push(arg);
         });
-      } else if (contextObj.roamContext.page) {
+      } else if (
+        contextObj.roamContext.page &&
+        !contextObj.roamContext.pageArgument?.length
+      ) {
+        // only a bare {page} means the current page, not page(title)
         contextObj.roamContext.pageViewUid = getPageUidByBlockUid(currentUid);
       }
       context = await getAndNormalizeContext({
