@@ -55,7 +55,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.35 (August 2026) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.36 (September 2026) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
@@ -85,22 +85,21 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "35";
+export const WHATS_NEW_VERSION = "36";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.35 (August 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.36 (September 2026) 🎉
 
-#### 🎨 **Color Highlighter tool**
-- Ask the agent to **color your notes** — highlight, text color, underline, box, block background — or to **extract content by color**: "extract and comment everything highlighted in blue"
-- Follows the **Color Highlighter** extension conventions (install it from Roam Depot for the colors to render). Plain Roam formatting works too, so "clean up the highlights of this page" applies to colored *and* uncolored ones
-
-#### 🎯 **Context & target selector** (next to the chat input)
-- Choose which sources the agent **reads** — loaded context, main view, sidebar — and, independently, which it **acts on**: read what you loaded while editing the page you are looking at
-- Main view and sidebar are re-read at each request, so they follow you when you change page. Pin your setup to keep it across sessions
-- The agent no longer asks you to load the current page before editing it
+#### 🆕 **New models**
+- GPT 6 Luna, Sol & Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare
+- GPT Image 2.5 models: \`quality: xhigh\` and \`quality: max\` can be requested directly in the image prompt
 
 #### **Fixed**
-- **Editing a block containing a \`((block ref))\` or an \`{{embed}}\` destroyed it** — the AI sees them resolved into text and wrote that text back. Such edits are now refused instead
-- A source already loaded in the context is no longer sent twice
+- Pasting text containing a \`/\` in the Chat input could open the slash commands menu, which then stayed stuck on screen and captured keyboard input
+- \`LIVEAIGEN\` SmartBlock: with \`{append}\`/\`{replace}\` targets, multi-line responses left the host block empty (the first line now goes into it), and \`{page(title)}\` context also included the current page
+
+#### In v.35: Color Highlighter compatibility
+- Ask the agent to **color your notes** — highlight, text color, underline, box, block background — or to **extract content by color**: "extract and comment everything highlighted in blue"
+- Follows the **Color Highlighter** extension conventions (install it from Roam Depot for the colors to render).
 
 #### In v.34: **attached files & live dictation**
 - Attach \`.md\`, \`.txt\`, \`.csv\`, \`.json\` or code files in your prompt or context (\`.docx\`/\`.pptx\` with OpenAI models); the \`PDF\` checkbox became \`Files\`

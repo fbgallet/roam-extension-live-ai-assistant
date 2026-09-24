@@ -18,6 +18,10 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
+### New in v.36 (September, 2026)
+
+- New models support: GPT 6 Luna, Sol & Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare
+
 ### New in v.35 (August, 2026)
 
 - 🆕 **Color Highlighter tool** in the Chat agent: ask it to **highlight, underline, box or set a background color** on your blocks — or the other way round, to **extract content by color** ("extract and comment everything highlighted in blue"). It follows the conventions of the [Color Highlighter](https://github.com/fbgallet/roam-extension-color-highlighter) extension, to be installed from Roam Depot for the colors to render.
