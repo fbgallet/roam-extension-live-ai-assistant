@@ -1,63 +1,12 @@
 {
   "models": {
-    "gpt-6-astra": {
-      "id": "gpt-6-astra",
-      "name": "GPT 6 Astra",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 10, "output": 50 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "thinkingDefault": true,
-      "aliases": ["GPT 6", "GPT Astra"]
-    },
-    "gpt-6-sol": {
-      "id": "gpt-6-sol",
-      "name": "GPT 6 Sol",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 2, "output": 10 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "thinkingDefault": true,
-      "aliases": ["GPT 6 Sol", "GPT Sol"]
-    },
-    "gpt-6-luna": {
-      "id": "gpt-6-luna",
-      "name": "GPT 6 Luna",
-      "provider": "OpenAI",
-      "contextLength": 1050000,
-      "maxOutput": 128000,
-      "pricing": { "input": 0.1, "output": 0.5 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "visibleByDefault": true,
-      "thinkingDefault": true,
-      "aliases": ["GPT 6 Luna", "GPT Luna"]
-    },
     "claude-opus-5-5": {
-      "id": "claude-opus-5-5",
-      "name": "Claude Opus 5.5",
+      "id": "claude-sonnet-5-5",
+      "name": "Claude Sonnet 5.5",
       "provider": "Anthropic",
       "contextLength": 1000000,
       "maxOutput": 128000,
-      "pricing": { "input": 4, "output": 20 },
+      "pricing": { "input": 2, "output": 10 },
       "capabilities": {
         "thinking": true,
         "imageInput": true,
@@ -67,78 +16,12 @@
       "thinkingDefault": true,
       "visibleByDefault": true,
       "aliases": [
-        "claude-5-5-opus",
-        "opus-5-5",
-        "claude opus",
-        "claude opus 5.5",
-        "opus-latest"
+        "claude-5-5-sonnet",
+        "sonnet-5-5",
+        "claude sonnet",
+        "claude sonnet 5.5",
+        "sonnet-latest"
       ]
-    },
-    "claude-fable-5-1": {
-      "id": "claude-fable-5-1",
-      "name": "Claude Fable 5.1",
-      "provider": "Anthropic",
-      "contextLength": 1000000,
-      "maxOutput": 128000,
-      "pricing": { "input": 10, "output": 50 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true
-      },
-      "thinkingDefault": true,
-      "thinkingOnly": true,
-      "visibleByDefault": true,
-      "aliases": ["claude-fable", "claude fable", "fable-latest"]
-    },
-    "gemini-3.8-flash": {
-      "id": "gemini-3.8-flash",
-      "name": "Gemini 3.8 Flash",
-      "provider": "Google",
-      "contextLength": 1048576,
-      "maxOutput": 65536,
-      "pricing": { "input": 0.75, "output": 3.75 },
-      "capabilities": {
-        "thinking": true,
-        "imageInput": true,
-        "webSearch": true,
-        "fileInput": true,
-        "videoInput": true,
-        "audioInput": true
-      },
-      "thinkingOnly": true,
-      "visibleByDefault": true,
-      "preferredDefault": true,
-      "aliases": ["gemini-3-7-flash", "gemini-flash-latest"]
-    },
-    "gpt-image-2.5-sunburst": {
-      "id": "gpt-image-2.5-sunburst",
-      "name": "GPT Image 2.5 Sunburst",
-      "provider": "OpenAI",
-      "pricing": { "input": 5, "inputImage": 8, "output": 30 },
-      "capabilities": {
-        "imageInput": true,
-        "imageOutput": true,
-        "editImage": true
-      },
-      "modelType": "image-generation",
-      "visibleByDefault": true,
-      "aliases": ["gpt-image-sunburst", "gpt-image-latest"]
-    },
-    "gpt-image-2.5-flare": {
-      "id": "gpt-image-2.5-flare",
-      "name": "GPT Image 2.5 Flare",
-      "provider": "OpenAI",
-      "pricing": { "input": 5, "inputImage": 8, "output": 30 },
-      "capabilities": {
-        "imageInput": true,
-        "imageOutput": true,
-        "editImage": true
-      },
-      "modelType": "image-generation",
-      "visibleByDefault": true,
-      "aliases": ["gpt-image-flare"]
     }
   }
 }
