@@ -1,6 +1,23 @@
 {
   "models": {
-    "claude-opus-5-5": {
+    "gpt-6.1-sol": {
+      "id": "gpt-6.1-sol",
+      "name": "GPT 6.1 Sol",
+      "provider": "OpenAI",
+      "contextLength": 1050000,
+      "maxOutput": 128000,
+      "pricing": { "input": 2, "output": 10 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "visibleByDefault": true,
+      "thinkingDefault": true,
+      "aliases": ["GPT 6.1 Sol", "GPT Sol", "gpt-sol-latest"]
+    },
+    "claude-sonnet-5-5": {
       "id": "claude-sonnet-5-5",
       "name": "Claude Sonnet 5.5",
       "provider": "Anthropic",

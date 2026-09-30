@@ -50,9 +50,9 @@ export const MODEL_REGISTRY = {
     thinkingDefault: true,
     aliases: ["GPT 6", "GPT Astra"],
   },
-  "gpt-6-sol": {
-    id: "gpt-6-sol",
-    name: "GPT 6 Sol",
+  "gpt-6.1-sol": {
+    id: "gpt-6.1-sol",
+    name: "GPT 6.1 Sol",
     provider: "OpenAI",
     contextLength: 1050000,
     maxOutput: 128000,
@@ -65,7 +65,7 @@ export const MODEL_REGISTRY = {
     },
     visibleByDefault: true,
     thinkingDefault: true,
-    aliases: ["GPT 6 Sol", "GPT Sol", "gpt-sol-latest"],
+    aliases: ["GPT 6.1 Sol", "GPT Sol", "gpt-sol-latest"],
   },
   "gpt-6-luna": {
     id: "gpt-6-luna",
@@ -385,6 +385,32 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-4.6-opus", "claude opus 4.6"],
   },
 
+  "claude-sonnet-5-5": {
+    id: "claude-sonnet-5-5",
+    name: "Claude Sonnet 5.5",
+    provider: "Anthropic",
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 2, output: 10 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+    },
+    thinkingDefault: true,
+    visibleByDefault: true,
+    preferredDefault: true,
+    aliases: [
+      "claude-sonnet",
+      "claude-5-5-sonnet",
+      "sonnet-5-5",
+      "claude sonnet",
+      "claude sonnet 5.5",
+      "sonnet-latest",
+    ],
+  },
+
   "claude-sonnet-5": {
     id: "claude-sonnet-5",
     name: "Claude Sonnet 5",
@@ -399,14 +425,9 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
-    visibleByDefault: true,
-    preferredDefault: true,
-    aliases: [
-      "claude-sonnet",
-      "claude-sonnet-5",
-      "claude sonnet 5",
-      "sonnet-latest",
-    ],
+    visibleByDefault: false,
+
+    aliases: ["claude-sonnet-5", "claude sonnet 5"],
   },
 
   "claude-haiku-4-5-20251001": {
