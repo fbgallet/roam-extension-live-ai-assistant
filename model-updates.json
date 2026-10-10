@@ -31,6 +31,7 @@
         "fileInput": true
       },
       "thinkingDefault": true,
+      "thinkingScheme": "anthropic-adaptive",
       "visibleByDefault": true,
       "aliases": [
         "claude-5-5-sonnet",
@@ -38,6 +39,30 @@
         "claude sonnet",
         "claude sonnet 5.5",
         "sonnet-latest"
+      ]
+    },
+    "claude-haiku-5-5": {
+      "id": "claude-haiku-5-5",
+      "name": "Claude Haiku 5.5",
+      "provider": "Anthropic",
+      "contextLength": 1000000,
+      "maxOutput": 128000,
+      "pricing": { "input": 0.1, "output": 0.5 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true
+      },
+      "thinkingDefault": true,
+      "thinkingScheme": "anthropic-adaptive",
+      "visibleByDefault": true,
+      "preferredDefault": true,
+      "aliases": [
+        "claude haiku",
+        "claude-haiku-5.5",
+        "claude haiku 5.5",
+        "haiku-latest"
       ]
     }
   }

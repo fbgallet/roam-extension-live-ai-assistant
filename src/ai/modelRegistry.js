@@ -341,6 +341,7 @@ export const MODEL_REGISTRY = {
       fileInput: true,
     },
     thinkingDefault: true,
+    thinkingOnly: true,
     visibleByDefault: true,
     aliases: [
       "claude-5-5-opus",
@@ -400,7 +401,6 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     visibleByDefault: true,
-    preferredDefault: true,
     aliases: [
       "claude-sonnet",
       "claude-5-5-sonnet",
@@ -430,20 +430,28 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-sonnet-5", "claude sonnet 5"],
   },
 
-  "claude-haiku-4-5-20251001": {
-    id: "claude-haiku-4-5-20251001",
-    name: "Claude Haiku 4.5",
+  "claude-haiku-5-5": {
+    id: "claude-haiku-5-5",
+    name: "Claude Haiku 5.5",
     provider: "Anthropic",
-    contextLength: 200000,
-    maxOutput: 8192,
-    pricing: { input: 1, output: 5 },
+    contextLength: 1000000,
+    maxOutput: 128000,
+    pricing: { input: 0.1, output: 0.5 },
     capabilities: {
+      thinking: true,
       imageInput: true,
       webSearch: true,
       fileInput: true,
     },
+    thinkingDefault: true,
     visibleByDefault: true,
-    aliases: ["claude-haiku-4.5", "claude haiku 4.5", "haiku-latest"],
+    preferredDefault: true,
+    aliases: [
+      "claude haiku",
+      "claude-haiku-5.5",
+      "claude haiku 5.5",
+      "haiku-latest",
+    ],
   },
 
   // ==================== Google Models ====================
@@ -1020,6 +1028,8 @@ export function usesAdaptiveThinking(identifier) {
   // Strip +thinking suffix used by Claude models
   const cleanId = identifier.replace(/\+thinking/i, "").trim();
   const model = getModelByIdentifier(cleanId);
+  // Remote (model-updates.json) entries can opt in without a code release.
+  if (model?.thinkingScheme === "anthropic-adaptive") return true;
   return (
     model?.id === "claude-opus-4-6" ||
     model?.id === "claude-sonnet-4-6" ||
@@ -1027,7 +1037,11 @@ export function usesAdaptiveThinking(identifier) {
     model?.id === "claude-opus-4-8" ||
     model?.id === "claude-opus-5" ||
     model?.id === "claude-sonnet-5" ||
+    model?.id === "claude-opus-5-5" ||
+    model?.id === "claude-sonnet-5-5" ||
+    model?.id === "claude-haiku-5-5" ||
     model?.id === "claude-fable-5" ||
+    model?.id === "claude-fable-5-1" ||
     model?.id === "claude-mythos-5"
   );
 }
@@ -1051,7 +1065,11 @@ export function rejectsSamplingParams(identifier) {
     model?.id === "claude-opus-4-8" ||
     model?.id === "claude-opus-5" ||
     model?.id === "claude-sonnet-5" ||
+    model?.id === "claude-opus-5-5" ||
+    model?.id === "claude-sonnet-5-5" ||
+    model?.id === "claude-haiku-5-5" ||
     model?.id === "claude-fable-5" ||
+    model?.id === "claude-fable-5-1" ||
     model?.id === "claude-mythos-5"
   );
 }
