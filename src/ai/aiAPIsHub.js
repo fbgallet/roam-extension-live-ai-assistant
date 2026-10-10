@@ -531,9 +531,15 @@ export async function claudeCompletion({
   includePdfInContext = false,
   onChunk,
   streamTo,
+  temperature: temperatureOverride,
+  effort: effortOverride,
+  signal,
+  throwOnError = false,
+  onUsage,
 }) {
   if (ANTHROPIC_API_KEY) {
     model = normalizeClaudeModel(model);
+    const temperature = temperatureOverride ?? modelTemperature;
 
     try {
       let messages =
@@ -585,8 +591,8 @@ export async function claudeCompletion({
       };
       // Claude Opus 4.7+, Sonnet 5, and Fable/Mythos 5 reject sampling
       // parameters (temperature/top_p/top_k) with a 400 error.
-      if (modelTemperature !== null && !rejectsSamplingParams(model))
-        options.temperature = modelTemperature;
+      if (temperature !== null && !rejectsSamplingParams(model))
+        options.temperature = temperature;
       if (streamResponse && responseFormat === "text") options.stream = true;
 
       // PDFs are sent as document blocks, so their urls must not be counted as
@@ -665,7 +671,7 @@ export async function claudeCompletion({
       // leave adaptive thinking on by default.
       const thinkingCfg = resolveThinkingConfig(model, {
         enabled: thinking,
-        effort: reasoningEffort,
+        effort: effortOverride || reasoningEffort,
       });
       if (thinkingCfg.thinking) options.thinking = thinkingCfg.thinking;
       if (thinkingCfg.outputConfig)
@@ -701,7 +707,16 @@ export async function claudeCompletion({
         method: "POST",
         headers,
         body: JSON.stringify(options),
+        signal,
       });
+      if (!response.ok && throwOnError) {
+        const errorBody = await response.text().catch(() => "");
+        let errorMsg = errorBody;
+        try {
+          errorMsg = JSON.parse(errorBody).error?.message || errorBody;
+        } catch (e) {}
+        throw new Error(`Anthropic API error ${response.status}: ${errorMsg}`);
+      }
 
       // handle streamed responses (not working from client-side)
       let respStr = "";
@@ -791,6 +806,7 @@ export async function claudeCompletion({
             }
           }
         } catch (e) {
+          if (throwOnError) throw e;
           console.log("Error during stream response: ", e);
           AppToaster.show({
             message: (
@@ -903,11 +919,13 @@ export async function claudeCompletion({
 
       console.log(`Tokens usage (${model}):>> `, usage);
       updateTokenCounter(model, usage);
+      onUsage?.(usage);
 
       // console.log("respStr :>> ", respStr);
 
       return jsonOnly || respStr;
     } catch (error) {
+      if (throwOnError) throw error;
       console.log("error :>> ");
       console.log(error);
       let errorMsg = error.response?.data?.message;
@@ -955,7 +973,13 @@ export async function openaiCompletionLegacy({
   includePdfInContext = false,
   onChunk,
   streamTo,
+  temperature: temperatureOverride,
+  effort: effortOverride,
+  signal,
+  throwOnError = false,
+  onUsage,
 }) {
+  const temperature = temperatureOverride ?? modelTemperature;
   let respStr = "";
   let usage = {};
   let withPdf = false;
@@ -1037,7 +1061,7 @@ export async function openaiCompletionLegacy({
     // Reused by the Grok block below (same function serves OpenAI/DeepSeek/Grok).
     const thinkingCfg = resolveThinkingConfig(model, {
       enabled: thinking,
-      effort: reasoningEffort,
+      effort: effortOverride || reasoningEffort,
     });
 
     // OpenAI reasoning models (o-series always on; gpt-5 follows the toggle).
@@ -1056,7 +1080,7 @@ export async function openaiCompletionLegacy({
     if (thinkingCfg.scheme === "openrouter" && thinkingCfg.reasoning) {
       options["reasoning"] = thinkingCfg.reasoning;
     }
-    if (modelTemperature !== null) options.temperature = modelTemperature * 2.0;
+    if (temperature !== null) options.temperature = temperature * 2.0;
     // maximum temperature with OpenAI models regularly produces aberrations.
     if (
       options.temperature > 1.2 &&
@@ -1095,23 +1119,39 @@ export async function openaiCompletionLegacy({
     console.log("options :>> ", options);
 
     if (!isSafari && !usesResponsesApi && !withPdf) {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(
-            new Error(
-              "Timeout error on client side: OpenAI response time exceeded (90 seconds)",
-            ),
+      // Abort the request itself on timeout (a bare Promise.race would leave it
+      // running). The caller's signal is chained so it still cancels the stream
+      // body after the response has arrived.
+      const timeoutController = new AbortController();
+      if (signal) {
+        if (signal.aborted) timeoutController.abort();
+        else
+          signal.addEventListener("abort", () => timeoutController.abort(), {
+            once: true,
+          });
+      }
+      let isTimedOut = false;
+      const timer = setTimeout(() => {
+        isTimedOut = true;
+        timeoutController.abort();
+      }, 90000);
+      try {
+        response = await aiClient.chat.completions.create(options, {
+          signal: timeoutController.signal,
+        });
+      } catch (error) {
+        if (isTimedOut)
+          throw new Error(
+            "Timeout error on client side: OpenAI response time exceeded (90 seconds)",
           );
-        }, 90000);
-      });
-      response = await Promise.race([
-        await aiClient.chat.completions.create(options),
-        timeoutPromise,
-      ]);
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
     } else {
       response = usesResponsesApi
-        ? await aiClient.responses.create(options)
-        : await aiClient.chat.completions.create(options);
+        ? await aiClient.responses.create(options, { signal })
+        : await aiClient.chat.completions.create(options, { signal });
     }
     let streamEltCopy = "";
     let annotations;
@@ -1187,6 +1227,7 @@ export async function openaiCompletionLegacy({
           // console.log(chunk);
         }
       } catch (e) {
+        if (throwOnError) throw e;
         console.log("Error during OpenAI stream response: ", e);
         console.log(respStr);
         return "";
@@ -1214,10 +1255,12 @@ export async function openaiCompletionLegacy({
       else response.choices[0].message.content += webSources;
     }
     console.log(`Tokens usage (${model}):>> `, usage);
-    updateTokenCounter(model, {
+    const normalizedUsage = {
       input_tokens: usage.prompt_tokens || usage.input_tokens,
       output_tokens: usage.completion_tokens || usage.output_tokens,
-    });
+    };
+    updateTokenCounter(model, normalizedUsage);
+    onUsage?.(normalizedUsage);
     console.log(respStr);
     return usesResponsesApi && !isToStream
       ? response.output_text
@@ -1225,6 +1268,7 @@ export async function openaiCompletionLegacy({
         ? respStr
         : response.choices[0].message.content;
   } catch (error) {
+    if (throwOnError) throw error;
     console.error(error);
     AppToaster.show({
       message: `OpenAI error msg: ${error.message}`,
@@ -1256,7 +1300,13 @@ export async function openaiResponse({
   previousResponseId = null,
   storeConversation = false,
   vectorStoreIds = null,
+  temperature: temperatureOverride,
+  effort: effortOverride,
+  signal,
+  throwOnError = false,
+  onUsage,
 }) {
+  const temperature = temperatureOverride ?? modelTemperature;
   let respStr = "";
   let usage = {};
 
@@ -1332,7 +1382,7 @@ export async function openaiResponse({
     // Handle reasoning for thinking models via the central resolver.
     const thinkingCfg = resolveThinkingConfig(model, {
       enabled: thinking,
-      effort: reasoningEffort,
+      effort: effortOverride || reasoningEffort,
     });
     // OpenAI reasoning (Responses API): o-series always on; gpt-5 follows the
     // toggle. effort is capped (max→high) by the resolver.
@@ -1351,9 +1401,9 @@ export async function openaiResponse({
     }
 
     // Temperature handling (provider-aware)
-    if (modelTemperature !== null) {
+    if (temperature !== null) {
       const tempConfig = getTemperatureConfig(model);
-      let temp = modelTemperature * tempConfig.scale;
+      let temp = temperature * tempConfig.scale;
       if (temp > tempConfig.max) temp = tempConfig.max;
       options.temperature = temp;
     }
@@ -1368,7 +1418,7 @@ export async function openaiResponse({
 
     console.log("OpenAI Response API options :>> ", options);
 
-    const response = await aiClient.responses.create(options);
+    const response = await aiClient.responses.create(options, { signal });
 
     // Handle streaming
     if (isToStream) {
@@ -1415,6 +1465,7 @@ export async function openaiResponse({
           }
         }
       } catch (e) {
+        if (throwOnError) throw e;
         console.log("Error during OpenAI Response API stream: ", e);
         return "";
       } finally {
@@ -1446,14 +1497,17 @@ export async function openaiResponse({
     // Token usage tracking
     console.log(`Tokens usage (${model}):>> `, usage);
     if (usage.input_tokens || usage.output_tokens) {
-      updateTokenCounter(model, {
+      const normalizedUsage = {
         input_tokens: usage.input_tokens || usage.prompt_tokens,
         output_tokens: usage.output_tokens || usage.completion_tokens,
-      });
+      };
+      updateTokenCounter(model, normalizedUsage);
+      onUsage?.(normalizedUsage);
     }
 
     return respStr;
   } catch (error) {
+    if (throwOnError) throw error;
     console.error("OpenAI Response API error:", error);
     AppToaster.show({
       message: `OpenAI Response API error: ${error.message}`,
@@ -1618,7 +1672,13 @@ export async function googleCompletion({
   includePdfInContext = false,
   onChunk,
   streamTo,
+  temperature: temperatureOverride,
+  effort: effortOverride,
+  signal,
+  throwOnError = false,
+  onUsage,
 }) {
+  const temperature = temperatureOverride ?? modelTemperature;
   let respStr = "";
   let usage = {};
 
@@ -1868,12 +1928,17 @@ export async function googleCompletion({
     }
     // Skip temperature for thinking models (Google handles it internally)
     const isGoogleThinkingModel = isThinkingModel(model);
-    if (modelTemperature !== null && !isGoogleThinkingModel) {
-      generationConfig.temperature = modelTemperature;
+    if (temperature !== null && !isGoogleThinkingModel) {
+      generationConfig.temperature = temperature;
     }
+    // Shared by the chat and direct model APIs (a per-call config would replace
+    // the chat config instead of merging with it).
+    if (signal) generationConfig.abortSignal = signal;
 
     // Gemini thinkingLevel (with per-model floors) comes from the resolver.
-    const thinkingCfg = resolveThinkingConfig(model, { effort: reasoningEffort });
+    const thinkingCfg = resolveThinkingConfig(model, {
+      effort: effortOverride || reasoningEffort,
+    });
     if (thinkingCfg.scheme === "gemini" && thinkingCfg.level) {
       generationConfig["thinkingConfig"] = {
         thinkingLevel: thinkingCfg.level,
@@ -2048,6 +2113,7 @@ export async function googleCompletion({
           }
         }
       } catch (e) {
+        if (throwOnError) throw e;
         console.log("Error during Google stream response: ", e);
         console.log(respStr);
         return "";
@@ -2079,11 +2145,13 @@ export async function googleCompletion({
 
     if (usage.input_tokens || usage.output_tokens) {
       updateTokenCounter(model, usage);
+      onUsage?.(usage);
     }
 
     // console.log(respStr);
     return respStr;
   } catch (error) {
+    if (throwOnError) throw error;
     console.error(error);
 
     // Check if it's a 403 error related to video access
@@ -2123,13 +2191,18 @@ export async function ollamaCompletion({
   responseFormat = "text",
   targetUid,
   thinking,
+  temperature: temperatureOverride,
+  signal,
+  throwOnError = false,
+  onUsage,
 }) {
+  const temperature = temperatureOverride ?? modelTemperature;
   let respStr = "";
   try {
     const options = {
       num_ctx: 8192,
     };
-    if (modelTemperature !== null) options.temperature = modelTemperature;
+    if (temperature !== null) options.temperature = temperature;
 
     // Ollama controls reasoning via a top-level boolean `think` (no effort).
     // Only sent for models declared as reasoning models (scheme "ollama").
@@ -2159,10 +2232,15 @@ export async function ollamaCompletion({
         headers: {
           "Content-Type": "application/json",
         },
+        signal,
       },
     );
 
     console.log("Ollama chat completion response :>>", response);
+    onUsage?.({
+      input_tokens: response.data.prompt_eval_count || 0,
+      output_tokens: response.data.eval_count || 0,
+    });
     let text = response.data.message.content;
     let jsonOnly;
     if (responseFormat !== "text") {
@@ -2171,6 +2249,7 @@ export async function ollamaCompletion({
     }
     return jsonOnly || text;
   } catch (error) {
+    if (throwOnError) throw error;
     console.error(error);
     const msg =
       error.message === "Network Error"

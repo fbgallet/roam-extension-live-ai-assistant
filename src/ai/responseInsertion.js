@@ -106,14 +106,32 @@ export async function aiCompletion({
   silent = false,
   onChunk = undefined,
   streamTo = undefined,
+  // Per-call overrides of the user settings (used by the public API)
+  temperature = undefined,
+  effort = undefined,
+  signal = undefined,
+  // Throw provider errors instead of showing a toast and returning ""
+  throwOnError = false,
+  // Called with { input_tokens, output_tokens } once the provider reports usage
+  onUsage = undefined,
+  // When false, a json_object response is returned as the raw JSON string
+  // instead of being parsed and unwrapped from its { response } envelope
+  parseJsonResponse = true,
 }) {
   let aiResponse;
   let model = instantModel || defaultModel;
 
   // Pass thinkingEnabled to modelAccordingToProvider so it can update model ID for thinking variants
   const llm = modelAccordingToProvider(model, thinkingEnabled);
-  if (!llm) return "";
-  if (isAPIKeyNeeded(llm, silent)) return "";
+  if (!llm) {
+    if (throwOnError) throw new Error(`Unknown model: ${model}`);
+    return "";
+  }
+  if (isAPIKeyNeeded(llm, silent)) {
+    if (throwOnError)
+      throw new Error(`No API key configured for ${llm.name || model}.`);
+    return "";
+  }
 
   const lastTurn = Array.isArray(prompt) ? prompt.at(-1).content : prompt;
 
@@ -159,6 +177,11 @@ export async function aiCompletion({
     includePdfInContext,
     onChunk,
     streamTo,
+    temperature,
+    effort,
+    signal,
+    throwOnError,
+    onUsage,
   };
 
   if (llm.provider === "Google") {
@@ -184,7 +207,7 @@ export async function aiCompletion({
     aiResponse = await claudeCompletion(completionOptions);
   }
 
-  if (responseFormat === "json_object") {
+  if (responseFormat === "json_object" && parseJsonResponse) {
     let parsedResponse = JSON.parse(aiResponse);
     if (typeof parsedResponse.response === "string")
       parsedResponse.response = JSON.parse(parsedResponse.response);

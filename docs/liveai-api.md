@@ -11,6 +11,29 @@ The API is **disabled by default**. To enable it:
 
 Once enabled, `window.LiveAI_API` is available globally. It is cleaned up when the extension unloads.
 
+### Waiting for the API
+
+Extensions can load in any order, and the user can enable the API at any time. Instead of polling, listen for the `liveai:api-ready` event (dispatched on `window` each time the API is registered). `liveai:api-unloaded` is dispatched when it is removed.
+
+```js
+function whenLiveAIReady() {
+  if (window.LiveAI_API) return Promise.resolve(window.LiveAI_API);
+  return new Promise((resolve) =>
+    window.addEventListener(
+      "liveai:api-ready",
+      () => resolve(window.LiveAI_API),
+      { once: true }
+    )
+  );
+}
+
+const liveAI = await whenLiveAIReady();
+
+window.addEventListener("liveai:api-unloaded", () => {
+  // Disable your AI features until the next "liveai:api-ready"
+});
+```
+
 ---
 
 ## API Reference
@@ -78,6 +101,7 @@ const models = window.LiveAI_API.listModels();
 | `contextLength` | `number \| null` | Token context window |
 | `maxOutput` | `number \| null` | Maximum output tokens |
 | `isDefault` | `boolean` | Whether this is the user's current default model |
+| `thinkingEfforts` | `string[]` | Effort levels the model accepts for `generate({ effort })` (empty for non-reasoning models) |
 
 ---
 
@@ -92,21 +116,24 @@ The core method. Sends a prompt to an LLM and returns the response.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prompt` | `string \| Message[]` | **required** | The user prompt. A simple string or an array of `{role, content}` messages for multi-turn conversations. |
-| `model` | `string` | user's default | Model id (e.g. `"claude-sonnet-4"`, `"gpt-5.1"`). Use `listModels()` to see available models. |
+| `model` | `string` | user's default | Model id (e.g. `"claude-sonnet-4"`, `"gpt-5.1"`). Must be one of the models returned by `listModels()`, otherwise an `INVALID_MODEL` error is thrown. |
 | `systemPrompt` | `string` | `""` | Additional system instructions. Behavior depends on `useDefaultSystemPrompt`. |
 | `useDefaultSystemPrompt` | `boolean` | `true` | See [System Prompt Behavior](#system-prompt-behavior) below. |
 | `context` | `string` | `""` | Additional text context injected alongside the prompt. Mutually exclusive with `roamContext`. |
 | `roamContext` | `RoamContext` | `undefined` | Roam graph context object. Mutually exclusive with `context`. See [RoamContext](#roamcontext) below. |
-| `responseFormat` | `"text" \| "json_object"` | `"text"` | Response format. Use `"json_object"` for structured JSON responses. |
-| `temperature` | `number` | model default | Temperature override (0-2). |
+| `responseFormat` | `"text" \| "json_object"` | `"text"` | Response format. Use `"json_object"` for structured JSON responses (parsed into `result.json`). |
+| `jsonSchema` | `object` | `undefined` | JSON Schema the response must follow. Implies `responseFormat: "json_object"`, only with `output: "raw"`. The schema is given to the model, and the parsed response is checked against it (`type`, `properties`, `required`, `items`, `enum`, `additionalProperties: false`). If it doesn't match, an `INVALID_JSON` error is thrown, with the parsed response in `error.json`. |
+| `temperature` | `number` | user setting | Temperature override on an OpenAI-style 0-2 scale, rescaled to each provider's range (e.g. 0-1 for Anthropic). Ignored by models that reject sampling parameters (recent Claude models, Gemini thinking models). |
 | `thinking` | `boolean` | `undefined` | Enable extended thinking/reasoning if the model supports it. |
+| `effort` | `"minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | user setting | Reasoning effort for thinking models. Mapped to the closest level each provider accepts (see `thinkingEfforts` in `listModels()`). Ignored by non-reasoning models. |
 | `output` | `"raw" \| "blocks" \| "insert"` | `"raw"` | Output mode. See [Output Modes](#output-modes) below. |
 | `targetUid` | `string` | `undefined` | Required when `output` is `"insert"`. The Roam block UID where children blocks will be inserted. |
 | `targetBlockTitle` | `string` | `undefined` | When `output` is `"insert"`: write this text into the parent block (at `targetUid`) before inserting the response as children. Useful for adding a title/header. |
 | `onChunk` | `(chunk: string) => void` | `undefined` | Streaming callback. Called with each text chunk as it arrives from the LLM. See [Streaming](#streaming) below. |
 | `streamTo` | `HTMLElement \| "none"` | `"none"` | Where to display the streaming response. An HTMLElement to stream into, or `"none"` (default for API) to suppress DOM display. Omit or set to `"none"` if you only want the `onChunk` callback. |
-| `signal` | `AbortSignal` | `undefined` | Standard `AbortController` signal for cancellation. |
-| `caller` | `string` | `undefined` | Caller identification (e.g. `"my-extension/1.0"`). Logged to console for transparency. |
+| `focusedBlockUid` | `string` | block focused in Roam | Reference block for the `children`, `siblings` and `path` options of `roamContext`. |
+| `signal` | `AbortSignal` | `undefined` | Standard `AbortController` signal for cancellation. Aborting cancels the underlying HTTP request. |
+| `caller` | `string` | `undefined` | Caller identification (e.g. `"my-extension/1.0"`). Logged to console for transparency, and used as the rate-limit bucket. |
 
 #### GenerateResult
 
@@ -114,8 +141,20 @@ The core method. Sends a prompt to an LLM and returns the response.
 |-------|------|-------------|
 | `text` | `string` | Raw text response (always present) |
 | `blocks` | `Block[] \| undefined` | Parsed Roam block tree. Present when `output` is `"blocks"` or `"insert"`. Each block: `{ string, children: [] }` |
+| `json` | `any \| undefined` | Parsed JSON response. Present when `responseFormat` is `"json_object"` or `jsonSchema` is set. |
 | `model` | `string` | Actual model id used |
 | `provider` | `string` | Provider name |
+| `usage` | `Usage \| null` | Token usage reported by the provider, or `null` if it reported none. |
+
+#### Usage
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `inputTokens` | `number` | Input (prompt + context) tokens |
+| `outputTokens` | `number` | Output tokens (including reasoning tokens for most providers) |
+| `estimatedCost` | `number \| null` | Estimated cost in USD from Live AI's pricing table, `null` if the model's pricing is unknown (custom, local models) |
+
+The tokens are also added to the user's Live AI token counter.
 
 #### System Prompt Behavior
 
@@ -214,7 +253,7 @@ interface RoamContext {
   // Page content
   page?: boolean;               // Include page content
   pageArgument?: string[];      // Specific page titles to include
-  pageViewUid?: string;         // UID of the current page view
+  pageViewUid?: string;         // UID of the page (or zoomed block) to include
 
   // Linked references
   linkedRefs?: boolean;         // Include linked references of the page
@@ -231,7 +270,7 @@ interface RoamContext {
   block?: boolean;              // Include specific blocks
   blockArgument?: string[];     // Array of block UIDs to include
 
-  // Relative to focused block
+  // Relative to the focused block (see focusedBlockUid)
   children?: boolean;           // Include children of the focused block
   siblings?: boolean;           // Include sibling blocks
 
@@ -244,15 +283,24 @@ interface RoamContext {
 }
 ```
 
+**Defaults filled by the API:**
+
+- `page` without `pageArgument`, or `linkedRefs` without `linkedRefsArgument`: if `pageViewUid` is omitted, the page (or zoomed block) open in the main window is used.
+- `children`, `siblings`, `path`: they apply to `focusedBlockUid`, or else to the block focused in Roam. If there is neither, an `INVALID_OPTIONS` error is thrown.
+- Your `roamContext` object is never modified.
+
 **Examples:**
 
 ```js
 // Include the current page + its linked references
 roamContext: {
   page: true,
-  pageViewUid: "page-uid-here",
   linkedRefs: true,
 }
+
+// Include the children of a given block
+roamContext: { children: true },
+focusedBlockUid: "block-uid-here",
 
 // Include specific blocks by UID
 roamContext: {
@@ -275,6 +323,39 @@ roamContext: {
 // Include the right sidebar content
 roamContext: {
   sidebar: true,
+}
+```
+
+---
+
+### `window.LiveAI_API.getContext(roamContext, options?)`
+
+**Returns:** `Promise<{ text: string, estimatedTokens: number }>`
+
+Extracts the text Live AI would send as context for a [`roamContext`](#roamcontext), **without calling any model** (no rate limit, no cost). Use it to preview the context, or to check its size against a model's `contextLength` before calling `generate()`.
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `focusedBlockUid` | `string` | Reference block for `children`, `siblings` and `path` (default: the block focused in Roam) |
+
+`estimatedTokens` is a quick approximation (based on character count), not an exact tokenizer count.
+
+```js
+const { text, estimatedTokens } = await window.LiveAI_API.getContext({
+  page: true,
+  linkedRefs: true,
+});
+
+const model = window.LiveAI_API.listModels().find((m) => m.isDefault);
+if (model?.contextLength && estimatedTokens > model.contextLength * 0.8) {
+  console.warn("Context too large for", model.id);
+} else {
+  // Pass the extracted text as a plain context, possibly after trimming it
+  const result = await window.LiveAI_API.generate({
+    prompt: "Summarize the key decisions",
+    context: text,
+    caller: "my-extension/1.0",
+  });
 }
 ```
 
@@ -326,23 +407,40 @@ await window.LiveAI_API.insertBlocks("target-uid", [
 - **Frozen API object**: `window.LiveAI_API` is frozen with `Object.freeze()`, preventing monkey-patching or prototype chain attacks.
 - **Opt-in gating**: The API is disabled by default. Users must explicitly enable it in the settings panel.
 - **Caller logging**: When the `caller` field is provided, requests are logged to the browser console: `[LiveAI API] Request from "extension-name" -> model-id`. Users can monitor which extensions are making API calls.
-- **Rate limiting**: Maximum 20 requests per minute per extension session, to prevent runaway loops from buggy code.
+- **Rate limiting**: Maximum 20 requests per minute per `caller` (requests without `caller` share one bucket), and 60 requests per minute across all extensions, to prevent runaway loops from buggy code.
 - **Input validation**: All parameters are validated before execution. Errors return clear messages without exposing internal stack traces.
 
 ---
 
 ## Error Handling
 
-All errors are thrown as standard JavaScript `Error` objects with descriptive messages prefixed by `[LiveAI_API]`. Errors from LLM providers are wrapped to avoid leaking internal details.
+All errors are thrown as standard JavaScript `Error` objects with descriptive messages prefixed by `[LiveAI_API]`, and a machine-readable `code` (also listed in `window.LiveAI_API.errorCodes`). Errors from LLM providers are wrapped to avoid leaking internal details.
+
+| `error.code` | When |
+|--------------|------|
+| `INVALID_OPTIONS` | An option is missing or invalid |
+| `RATE_LIMIT` | Per-caller or global rate limit exceeded |
+| `INVALID_MODEL` | The requested model is unknown or not configured by the user |
+| `NO_API_KEY` | The model's provider has no API key |
+| `EMPTY_RESPONSE` | The model returned no text |
+| `INVALID_JSON` | The response is not valid JSON, or doesn't match `jsonSchema` |
+| `PROVIDER_ERROR` | The LLM provider returned an error (network, quota, invalid request…) |
 
 ```js
 try {
   const result = await window.LiveAI_API.generate({ prompt: "Hello" });
 } catch (error) {
-  console.error(error.message);
-  // "[LiveAI_API] Generation failed: Provide an API key to use..."
-  // "[LiveAI_API] Rate limit exceeded: max 20 requests per minute."
-  // "[LiveAI_API] 'prompt' must be a string or an array of {role, content} messages."
+  switch (error.code) {
+    case "RATE_LIMIT":
+      // retry later
+      break;
+    case "NO_API_KEY":
+    case "INVALID_MODEL":
+      // ask the user to pick another model
+      break;
+    default:
+      console.error(error.message);
+  }
 }
 ```
 
@@ -444,7 +542,30 @@ const result = await window.LiveAI_API.generate({
   responseFormat: "json_object",
   systemPrompt: "Return a JSON object with 'people' and 'places' arrays.",
 });
-// result.text is the parsed JSON object
+// result.json is the parsed object, result.text the raw JSON string
+```
+
+### JSON output following a schema
+
+```js
+try {
+  const result = await window.LiveAI_API.generate({
+    prompt: "Extract all people and places mentioned in this text",
+    context: "Yesterday, Alice met Bob at the Eiffel Tower in Paris...",
+    jsonSchema: {
+      type: "object",
+      required: ["people", "places"],
+      properties: {
+        people: { type: "array", items: { type: "string" } },
+        places: { type: "array", items: { type: "string" } },
+      },
+    },
+    caller: "extractor-ext/1.0",
+  });
+  console.log(result.json.people, result.usage);
+} catch (error) {
+  if (error.code === "INVALID_JSON") console.warn(error.message, error.json);
+}
 ```
 
 ### Insert with a title in the parent block
