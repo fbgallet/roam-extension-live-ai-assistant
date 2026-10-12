@@ -656,9 +656,9 @@ export const MODEL_REGISTRY = {
 
   // ==================== Grok Models ====================
 
-  "grok-4.5": {
-    id: "grok-4.5",
-    name: "Grok 4.5",
+  "grok-4.7": {
+    id: "grok-4.7",
+    name: "Grok 4.7",
     provider: "Grok",
     contextLength: 500000,
     pricing: { input: 2, output: 6 },
@@ -668,13 +668,10 @@ export const MODEL_REGISTRY = {
       webSearch: true,
       fileInput: true,
     },
-    // Grok 4.5 is reasoning-only: reasoning_effort "none" returns a 400
-    // ("This model does not support reasoning_effort value none"), so thinking
-    // can't be turned off — only its level tuned.
     thinkingDefault: true,
     thinkingOnly: true,
     visibleByDefault: true,
-    aliases: ["grok-4-5", "grok-4.5", "grok-4", "grok-latest"],
+    aliases: ["grok-4-7", "grok-4.7", "grok-4", "grok-latest"],
   },
 
   "grok-4.3": {
