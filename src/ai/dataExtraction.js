@@ -2,6 +2,7 @@ import {
   chatRoles,
   defaultModel,
   exclusionStrings,
+  extensionStorage,
   getConversationParamsFromHistory,
   getInstantAssistantRole,
   logPagesNbDefault,
@@ -1157,29 +1158,64 @@ export const getCustomPromptByUid = (uid) => {
 
   const inlineContext = getRoamContextFromPrompt(prompt);
   if (inlineContext) prompt = inlineContext.updatedPrompt;
-  if (prompt.toLowerCase().includes("<built-in:")) {
-    let matchingPrompt = prompt.match(builtInPromptRegex);
-    if (matchingPrompt) {
-      const builtInName = matchingPrompt[1].trim().toLowerCase();
-      let secondParam;
-      if (matchingPrompt.length > 2) secondParam = matchingPrompt[2];
-      const builtInCommand = BUILTIN_COMMANDS.find(
-        (cmd) =>
-          cmd.name.toLowerCase() === builtInName ||
-          cmd.prompt?.toLowerCase() === builtInName
-      );
-      if (builtInCommand) {
-        prompt = prompt.replace(
-          matchingPrompt[0],
-          completionCommands[builtInCommand.prompt]
-        );
-        if (builtInCommand === "translate" && secondParam)
-          prompt = prompt.replace("<language>", secondParam);
-      }
-    }
-  }
+  prompt = resolveBuiltInPrompts(prompt);
   return { prompt, context: inlineContext?.roamContext };
 };
+
+// Built-in prompt text from its key in completionCommands (case insensitive)
+// or its command name, e.g. "summarize" or "translate" + "Spanish"
+export const getBuiltInPrompt = (name, secondParam) => {
+  const builtInName = name?.trim().toLowerCase();
+  if (!builtInName) return null;
+  const builtInCommand = BUILTIN_COMMANDS.find(
+    (cmd) =>
+      cmd.name?.toLowerCase() === builtInName ||
+      cmd.prompt?.toLowerCase() === builtInName
+  );
+  const promptKey =
+    builtInCommand?.prompt && completionCommands[builtInCommand.prompt]
+      ? builtInCommand.prompt
+      : Object.keys(completionCommands).find(
+          (key) => key.toLowerCase() === builtInName
+        );
+  if (!promptKey) return null;
+  let builtInPrompt = completionCommands[promptKey];
+  if (promptKey === "translate")
+    builtInPrompt = builtInPrompt.replace(
+      "<language>",
+      secondParam?.trim() ||
+        extensionStorage.get("translationDefaultLgg") ||
+        "English"
+    );
+  return builtInPrompt;
+};
+
+// Replace each <built-in:command> or <built-in:translate:language> by the built-in prompt
+export const resolveBuiltInPrompts = (prompt) => {
+  if (!prompt || !prompt.toLowerCase().includes("<built-in:")) return prompt;
+  return prompt.replace(
+    new RegExp(builtInPromptRegex.source, "gi"),
+    (match, name, secondParam) => getBuiltInPrompt(name, secondParam) || match
+  );
+};
+
+// Custom prompt (#liveai/prompt) by its title, case insensitive
+export const getCustomPromptUidByTitle = (title) => {
+  const normalizedTitle = title?.trim().toLowerCase();
+  if (!normalizedTitle) return null;
+  const blocks = getBlocksMentioningTitle("liveai/prompt") || [];
+  const matchingBlock = blocks.find(
+    (block) =>
+      block.content
+        .replace(customTagRegex["liveai/prompt"], "")
+        .trim()
+        .toLowerCase() === normalizedTitle
+  );
+  return matchingBlock?.uid || null;
+};
+
+export const isCustomPromptBlock = (uid) =>
+  customTagRegex["liveai/prompt"].test(getBlockContentByUid(uid) || "");
 
 export const getOrderedCustomPromptBlocks = (tag) => {
   let blocks = getBlocksMentioningTitle(tag);

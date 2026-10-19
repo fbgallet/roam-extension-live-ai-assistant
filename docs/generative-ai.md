@@ -14,6 +14,65 @@ They are structured so that the input content is clearly identified as such and 
 
 The prompts were drafted with the help of Claude Sonnet 3.5, to be comprehensive, precise, and ideally interpreted by LLMs, but no formulation can be perfect for all LLMs. In particular, these prompts were not specifically designed for reasoning LLMs but rather for classic generative AI. For a more relevant choice and better understanding of the results obtained, you can consult the details of the prompts [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/428602f8a383b46425a80f6e63ec2ef3af05d1b8/src/ai/prompts.js#L112).
 
+### List of built-in prompts
+
+The **key** is the identifier to use in custom prompts (`<built-in:key>`) or in SmartBlocks (`{built-in:key}`); the name as displayed in the context menu can also be used instead (case insensitive).
+
+| Category | Key | Name in context menu |
+| --- | --- | --- |
+| Translation | `translate` (+ `:language`, e.g. `translate:Spanish`) | Translate to... |
+| Rephrasing | `correctWording` | Fix spelling & grammar |
+| Rephrasing | `correctWordingAndExplain` | Fix spelling & grammar + explain |
+| Rephrasing | `correctWordingAndSuggestions` | Fix spelling & grammar / suggestions |
+| Rephrasing | `acceptSuggestions` | Accept corrections/suggestions |
+| Rephrasing | `rephrase` | Rephrase |
+| Rephrasing | `shorten` | Shorter |
+| Rephrasing | `accessible` | More accessible |
+| Rephrasing | `clearer` | Clearer and more explicit |
+| Rephrasing | `formal` | More formal |
+| Rephrasing | `casual` | More casual |
+| Rephrasing | `enhance` | More engaging |
+| Rephrasing | `enhanceWithSuggestions` | More engaging with suggestions |
+| Rephrasing | `vocabularySuggestions` | Vocabulary suggestions |
+| Rephrasing | `linearParagraph` | Outline to Paragraph |
+| Rephrasing | `outline` | Paragraph to Outline |
+| Content analysis | `summarize` | Summarize |
+| Content analysis | `keyInsights` | Extract key insights |
+| Content analysis | `extractActionable` | Extract actionable items |
+| Content analysis | `extractHighlights` | Extract highlighted text |
+| Content analysis | `reasoningAnalysis` | Extract reasoning structure |
+| Content analysis | `argumentMapMermaid` | Extract argument map (Mermaid) |
+| Content analysis | `sentimentAnalysis` | Sentiment Analysis |
+| Content analysis | `valueAnalysis` | Value Analysis |
+| Content analysis | `imageOCR` | Extract text from image |
+| Content analysis | `imageAnalysis` | Image Analysis |
+| Creation | `sentenceCompletion` | Complete sentence |
+| Creation | `paragraphCompletion` | Complete paragraph |
+| Creation | `socialNetworkPost` | Short message for social network |
+| Creation | `socialNetworkThread` | Thread for social network |
+| Creation | `quiz` | Quiz on provided content |
+| Creation | `similarContent` | Another similar content |
+| Creation | `mermaid` | Mermaid diagram |
+| Action | `actionPlan` | Action plan for a project |
+| Action | `howTo` | How to... (active learning) |
+| Action | `guidanceToGoal` | Roadmap to achieve a goal |
+| Action | `practicalTip` | Practical tip |
+| Action | `choice` | Help to make a choice |
+| Critical reasoning toolkit | `argument` | Argument |
+| Critical reasoning toolkit | `consolidate` | Consolidate or base on evidence |
+| Critical reasoning toolkit | `objection` | Objection, counterargument |
+| Critical reasoning toolkit | `counterExample` | Counterexample |
+| Critical reasoning toolkit | `fallacy` | Logical fallacy challenge |
+| Critical reasoning toolkit | `explanation` | Explanation |
+| Critical reasoning toolkit | `meaning` | Definition, meaning |
+| Critical reasoning toolkit | `example` | Example |
+| Critical reasoning toolkit | `causalExplanation` | Causal explanation |
+| Critical reasoning toolkit | `analogicalExplanation` | Explanation by analogy |
+| Critical reasoning toolkit | `challengeMyIdeas` | Challenge my ideas! |
+| Critical reasoning toolkit | `raiseQuestions` | Raise questions |
+| Critical reasoning toolkit | `perspectiveShift` | Perspective shift |
+| Critical reasoning toolkit | `brainstorming` | Brainstorming |
+
 We particularly draw users' attention to the prompts gathered under the "**Critical reasoning toolkit**" category, which offer a wide range of prompts to produce or discuss arguments or statements, question them, change perspectives, and thus cultivate critical thinking. Indeed, the generalization of LLMs tends, as suggested by [this study](https://www.microsoft.com/en-us/research/uploads/prod/2025/01/lee_2025_ai_critical_thinking_survey.pdf), to reduce the exercise of critical thinking, even though the content produced by LLMs actually requires sharp critical thinking to avoid being misled by the appearance of confidence and certainty they often take on, even when they are pure hallucinations or bullshit. We believe that LLMs can help us think better and exercise our critical thinking, but this is probably not the general trend of their use. That's why we encourage testing and regularly using prompts to exercise reasoning capabilities, of which the "Critical reasoning toolkit" offers a sample, which can be supplemented by the Socratic style or Quiz style (see section on styles).
 
 ## 2) Context definition and inline context
@@ -55,7 +114,7 @@ To provide a clear indication about the insertion of the input content in your p
 
 You can **define a context** always used as resource for your prompt, using the inline context syntax presented just above. Or you can define the context on demand (with context menu checkboxes or modifier keys).
 
-It's possible to insert built-in commands in your own custom commands ! Insert anywhere in your command the following string: `<built-in:command>` where 'command' has to be replaced by the exact (case sensitive) name of the built-in prompt to insert (available commands are keys of `completionCommands` object, [listed here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/e5ce3a8bfa74e3e9b5c245a790b02f40937003f8/src/ai/prompts.js#L114)). In this case, you have not to add `<target content>` placeholder since it's already in the built-in command. If you use `translate` command, add the language as a second argument: `<built-in:translate:English>
+It's possible to insert built-in commands in your own custom commands ! Insert anywhere in your command the following string: `<built-in:command>` where 'command' has to be replaced by the key (or the name in the context menu) of the built-in prompt to insert, see the [list of built-in prompts](#list-of-built-in-prompts). In this case, you have not to add `<target content>` placeholder since it's already in the built-in command. If you use `translate` command, add the language as a second argument: `<built-in:translate:English>
 
 ## 4) Custom styles
 
@@ -85,7 +144,13 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 
 **Parameters**: (all optional)
 
-1. Prompt: text (without comma, or escaped with `\`) or `{current}` block content or block reference in `uid` or `((uid))` format or list of block refs separated by a `+`: `{uid1+uid2+...}` between brackets. Default: {current}
+1. Prompt: text (without comma, or escaped with `\`) or `{current}` block content or block reference in `uid` or `((uid))` format or list of block refs separated by a `+`: `{uid1+uid2+...}` between brackets. Default: {current}. You can also use:
+   - `{prompt:title}` or `{prompt:((uid))}`: a custom prompt (block with `#liveai/prompt`), designated by its title (case insensitive, without the tag) or its block reference. A direct block reference to a custom prompt block (`((uid))`) is also handled as a custom prompt: only its children are used as instructions, and its inline context and `<built-in:...>` commands are resolved.
+   - `{built-in:command}` or `{built-in:translate:language}`: a built-in prompt, `command` being the key or the name in the context menu of a built-in prompt (case insensitive), see the [list of built-in prompts](#list-of-built-in-prompts). Without language, `translate` uses your default translation language.
+   - `<built-in:command>` can also be inserted in any text or block used as prompt, as in custom prompts.
+   - These elements can be combined with `+`, e.g. `{built-in:summarize+((uid))}` to add your own instructions to a built-in prompt.
+
+   When the prompt contains the `<target content>` placeholder (always the case for built-in prompts), it is replaced by the content defined in the second parameter (or, if empty, by the current block content), so this content is processed exactly as with the context menu. The inline context defined in a custom prompt (`{{context: ...}}`) is added as context.
 2. Context or content to apply the prompt to: text or `{current}` block content or block reference or `[[page title]]` (context will be page content + linked references) or a list, between braces, of the following possible contexts, separated by any character except a comma (e.g.: {page+sidebar}):
    - `{uid1+uid2+...}` or `{block(uid1+uid2+...)}`: a list of block references in `uid` or `((uid))` format (only the second syntax can be used in combination with with other elements to add to the context)
    - `{sidebar}`: all the content (including children blocks) of the right sidebar.
@@ -116,6 +181,12 @@ The SmartBlock button will be `{{🎙️:SmartBlock:Speech-to-Roam}}` (can be us
 `<%LIVEAIGEN:Summarize the content provided in context,{current},{append}%>` => text prompt applied to the current block content, AI response appended to the current block content.
 
 `<%LIVEAIGEN:{((cSoBrilIU))+((Iuq6UTY5C))},[[my last article]],,,4%>` => prompt in the first referenced block (and children) and instructions (for example about the output format) in the second referenced block, will be applied to the content of 'my last article' page and all its linked references (including up to the 4 levels).
+
+`<%LIVEAIGEN:{built-in:summarize},{page},{append}%>` => applies the built-in "summarize" prompt to the current page content, response appended to the current block.
+
+`<%LIVEAIGEN:{built-in:translate:Spanish},{children}%>` => translates the children blocks into Spanish, response inserted as a new child block.
+
+`<%LIVEAIGEN:{prompt:My weekly review},{DNPs(7)}%>` => applies your custom prompt titled "My weekly review #liveai/prompt" to the last 7 daily notes.
 
 `<%LIVEAIGEN:Analyze this content,{children},{chat}%>` => opens the Live AI Chat panel with "Analyze this content" as the prompt, all children blocks as context displayed in the Results panel, and automatically executes the AI response for an interactive conversation.
 

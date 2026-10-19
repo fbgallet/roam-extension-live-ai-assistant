@@ -48,6 +48,13 @@ import {
   getTemplateForPostProcessing,
   handleModifierKeys,
   getRoamContextFromPrompt,
+  getAndNormalizeContext,
+  getBuiltInPrompt,
+  getCustomPromptByUid,
+  getCustomPromptUidByTitle,
+  getUnionContext,
+  isCustomPromptBlock,
+  resolveBuiltInPrompts,
 } from "../ai/dataExtraction";
 import { flexibleUidRegex, sbParamRegex } from "./regex";
 import { openChatPopup } from "../components/full-results-popup";
@@ -312,7 +319,7 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
     text: "LIVEAIGEN",
     help: `Live AI text generation and chat.
       \nParameters:
-      \n1: prompt (text | block ref | {current} | {ref1+ref2+...}, default: {current} block content)
+      \n1: prompt (text | block ref | {current} | {prompt:custom prompt title or ref} | {built-in:command[:language]} | {ref1+ref2+...}, default: {current} block content)
       \n2: context or content to apply the prompt to (text | block ref | {current} | {children} | {ref1+ref2+...} | defined context, ex. {page(name)+ref(name)})
       \n3: target block reference | {replace[-]} | {append} | {chat} (default: first child)
       \n4: model (model ID or void string or "default" for default Live AI model)
@@ -608,30 +615,75 @@ const getInfosFromSmartBlockParams = async ({
   let forcedTools = null;
 
   let stringifiedPrompt = "";
+  // inline context defined in custom prompts (#liveai/prompt)
+  let promptRoamContext = null;
+  let isCurrentInPrompt = false;
+  const addCustomPrompt = (uid) => {
+    const customPrompt = getCustomPromptByUid(uid);
+    if (customPrompt.context)
+      promptRoamContext = promptRoamContext
+        ? getUnionContext(promptRoamContext, customPrompt.context)
+        : customPrompt.context;
+    return customPrompt.prompt;
+  };
   if (sbParamRegex.test(prompt) || flexibleUidRegex.test(prompt)) {
     if (sbParamRegex.test(prompt)) prompt = prompt.slice(1, -1);
     const splittedPrompt = prompt.split("+");
     splittedPrompt.forEach((subPrompt) => {
-      if (subPrompt === "current")
-        stringifiedPrompt +=
-          (stringifiedPrompt ? "\n\n" : "") + currentBlockContent;
-      else {
+      subPrompt = subPrompt.trim();
+      let subPromptContent;
+      if (subPrompt === "current") {
+        subPromptContent = currentBlockContent;
+        isCurrentInPrompt = true;
+      } else if (/^built-in:/i.test(subPrompt)) {
+        // {built-in:command} or {built-in:translate:language}
+        const [, name, secondParam] = subPrompt.split(":");
+        subPromptContent = getBuiltInPrompt(name, secondParam);
+        if (!subPromptContent) {
+          AppToaster.show({
+            message: `Live AI: "${name}" is not a valid built-in prompt name.`,
+            intent: "warning",
+          });
+          subPromptContent = "";
+        }
+      } else if (/^prompt:/i.test(subPrompt)) {
+        // {prompt:title} or {prompt:((uid))} of a custom prompt
+        const promptRef = subPrompt.slice(7).trim();
+        const customPromptUid =
+          extractNormalizedUidFromRef(promptRef) ||
+          getCustomPromptUidByTitle(promptRef);
+        if (customPromptUid) subPromptContent = addCustomPrompt(customPromptUid);
+        else {
+          AppToaster.show({
+            message: `Live AI: no custom prompt (#liveai/prompt) found matching "${promptRef}".`,
+            intent: "warning",
+          });
+          subPromptContent = "";
+        }
+      } else {
         const promptUid = extractNormalizedUidFromRef(subPrompt);
         if (promptUid) {
-          stringifiedPrompt +=
-            (stringifiedPrompt ? "\n\n" : "") +
-            getFlattenedContentFromTree({
-              parentUid: promptUid,
-              maxCapturing: 99,
-              maxUid: 0,
-              withDash: true,
-            });
-        } else
-          stringifiedPrompt += (stringifiedPrompt ? "\n\n" : "") + subPrompt;
+          subPromptContent = isCustomPromptBlock(promptUid)
+            ? addCustomPrompt(promptUid)
+            : getFlattenedContentFromTree({
+                parentUid: promptUid,
+                maxCapturing: 99,
+                maxUid: 0,
+                withDash: true,
+              });
+        } else subPromptContent = subPrompt;
       }
+      if (subPromptContent)
+        stringifiedPrompt +=
+          (stringifiedPrompt ? "\n\n" : "") + subPromptContent;
     });
   } else stringifiedPrompt = resolveReferences(prompt);
-  prompt = stringifiedPrompt;
+  // <built-in:command> can also be inserted in any text or block used as prompt
+  prompt = resolveBuiltInPrompts(stringifiedPrompt);
+  // built-in and custom prompts refer to the content to process with this placeholder
+  const hasTargetContentPlaceholder = /<target content>/i.test(prompt);
+  const replaceTargetContent = (content) =>
+    prompt.replace(/<target content>/i, () => content?.trim() || "");
 
   // Store context for potential chat opening
   let roamContext = null;
@@ -712,6 +764,22 @@ const getInfosFromSmartBlockParams = async ({
         }
       }
     }
+    if (hasTargetContentPlaceholder)
+      prompt = replaceTargetContent(
+        roamContext
+          ? "Apply these instructions to the content provided in context"
+          : context &&
+            context !== "{current}" &&
+            !sbParamRegex.test(context.trim())
+          ? resolveReferences(context)
+          : !isCurrentInPrompt
+          ? currentBlockContent
+          : ""
+      );
+    if (promptRoamContext)
+      roamContext = roamContext
+        ? getUnionContext(roamContext, promptRoamContext)
+        : promptRoamContext;
   } else {
     // Process context parameter for non-chat targets
     if (context) {
@@ -726,6 +794,28 @@ const getInfosFromSmartBlockParams = async ({
               includeRefs,
               model
             );
+    }
+    // the context parameter is the content to process by the built-in or custom prompt
+    if (hasTargetContentPlaceholder) {
+      prompt = replaceTargetContent(
+        stringifiedContext || (!isCurrentInPrompt ? currentBlockContent : "")
+      );
+      stringifiedContext = null;
+    }
+    // context defined in a custom prompt is provided as a resource
+    if (promptRoamContext) {
+      const promptContext = await getAndNormalizeContext({
+        roamContext: promptRoamContext,
+        focusedBlock: currentUid,
+        model,
+        maxDepth: contextDepth,
+        withHierarchy: true,
+        withUid: includeRefs === "true" || Number(includeRefs) > 0,
+      });
+      if (promptContext?.trim())
+        stringifiedContext =
+          (stringifiedContext ? stringifiedContext + "\n\n" : "") +
+          promptContext;
     }
   }
 
