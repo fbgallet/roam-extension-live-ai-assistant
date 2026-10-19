@@ -9,6 +9,7 @@
 
 import { availableModels, defaultModel } from "..";
 import { aiCompletion } from "../ai/responseInsertion";
+import { getActiveModel, getFavoriteModelStrings } from "../utils/activeModel";
 import {
   getModelByIdentifier,
   getMaxOutput,
@@ -535,6 +536,8 @@ function isAbortError(error, signal) {
  * List available models with safe metadata (no API keys or library references).
  */
 function listModels() {
+  const activeModel = getActiveModel();
+  const favorites = getFavoriteModelStrings();
   return availableModels.map((modelId) => {
     const registryEntry = getModelByIdentifier(modelId);
     if (registryEntry) {
@@ -548,6 +551,8 @@ function listModels() {
         contextLength: registryEntry.contextLength || null,
         maxOutput: getMaxOutput(modelId) || null,
         isDefault: modelId === defaultModel,
+        isActive: modelId === activeModel,
+        isFavorite: favorites.includes(modelId),
         thinkingEfforts: isThinkingModel(modelId)
           ? getThinkingEffortOptions(modelId)
           : [],
@@ -561,6 +566,8 @@ function listModels() {
       contextLength: null,
       maxOutput: null,
       isDefault: modelId === defaultModel,
+      isActive: modelId === activeModel,
+      isFavorite: favorites.includes(modelId),
       thinkingEfforts: [],
     };
   });

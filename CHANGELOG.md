@@ -8,6 +8,7 @@
 **Updates**
 
 - New models support: Gemini 4 Argon, Grok 4.7
+- Live AI API: `listModels()` now returns `isActive` and `isFavorite` for each model (`generate()` still uses the default model when no model is given).
 
 ### v.36 (September 24th, 2026)
 

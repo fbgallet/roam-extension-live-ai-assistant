@@ -66,6 +66,8 @@ if (window.LiveAI_API?.isAvailable()) {
 
 Returns the user's currently configured default model id (e.g. `"gpt-5.1"`, `"claude-sonnet-4"`), or `null` if none is set.
 
+This is the model used by `generate()` when no `model` is given. It does not follow the **active model** the user may have switched to for the session in Live AI (see `isActive` in `listModels()`).
+
 ---
 
 ### `window.LiveAI_API.listModels()`
@@ -85,6 +87,8 @@ const models = window.LiveAI_API.listModels();
 //     contextLength: 400000,
 //     maxOutput: 32000,
 //     isDefault: true,
+//     isActive: true,
+//     isFavorite: false,
 //   },
 //   ...
 // ]
@@ -100,8 +104,17 @@ const models = window.LiveAI_API.listModels();
 | `capabilities` | `object` | `{ thinking, imageInput, webSearch, fileInput, videoInput, audioInput }` |
 | `contextLength` | `number \| null` | Token context window |
 | `maxOutput` | `number \| null` | Maximum output tokens |
-| `isDefault` | `boolean` | Whether this is the user's current default model |
+| `isDefault` | `boolean` | Whether this is the user's current default model (used by `generate()` when no `model` is given) |
+| `isActive` | `boolean` | Whether this is the model the user has currently switched to for the session in Live AI (same as the default model unless switched) |
+| `isFavorite` | `boolean` | Whether the user has marked this model as favorite |
 | `thinkingEfforts` | `string[]` | Effort levels the model accepts for `generate({ effort })` (empty for non-reasoning models) |
+
+To follow the model the user is currently working with in Live AI (instead of the stable default model), pass it explicitly:
+
+```js
+const activeModel = window.LiveAI_API.listModels().find((m) => m.isActive)?.id;
+await window.LiveAI_API.generate({ prompt: "...", model: activeModel });
+```
 
 ---
 
@@ -116,7 +129,7 @@ The core method. Sends a prompt to an LLM and returns the response.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `prompt` | `string \| Message[]` | **required** | The user prompt. A simple string or an array of `{role, content}` messages for multi-turn conversations. |
-| `model` | `string` | user's default | Model id (e.g. `"claude-sonnet-4"`, `"gpt-5.1"`). Must be one of the models returned by `listModels()`, otherwise an `INVALID_MODEL` error is thrown. |
+| `model` | `string` | user's default model (not the session active model) | Model id (e.g. `"claude-sonnet-4"`, `"gpt-5.1"`). Must be one of the models returned by `listModels()`, otherwise an `INVALID_MODEL` error is thrown. |
 | `systemPrompt` | `string` | `""` | Additional system instructions. Behavior depends on `useDefaultSystemPrompt`. |
 | `useDefaultSystemPrompt` | `boolean` | `true` | See [System Prompt Behavior](#system-prompt-behavior) below. |
 | `context` | `string` | `""` | Additional text context injected alongside the prompt. Mutually exclusive with `roamContext`. |
