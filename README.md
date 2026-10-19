@@ -168,7 +168,7 @@ Often, you will ask your assistant to process information already available in y
 
 You can also add specific instructions to built-in prompts simply by clicking the `+` button on the left of the prompt search box !
 
-You can view the exact content of each of these prompts [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/428602f8a383b46425a80f6e63ec2ef3af05d1b8/src/ai/prompts.js#L112).
+See the [list of all built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts) with their key, to insert them in your custom prompts (`<built-in:key>`) or call them from SmartBlocks (`<%LIVEAIGEN:{built-in:key}%>`). You can view the exact content of each of these prompts [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/428602f8a383b46425a80f6e63ec2ef3af05d1b8/src/ai/prompts.js#L112).
 
 ### Providing rich context
 
@@ -350,6 +350,7 @@ You can even add feedback on the errors or shortcomings of the previous result: 
 
 Create your custom prompts simply by inserting `#liveai/prompt` in some block. The content of this block will be used as title of your custom prompt and all its children will be used as a structured prompt (block references will be resolved). They will appear in the "custom prompts" section of the context menu.
 In the title block of your custom prompt, you can define an inline context, see the syntax [here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#2-context-definition-and-inline-context).
+Custom prompts can also be called from SmartBlocks with `<%LIVEAIGEN:{prompt:title}%>` (see [SmartBlocks commands](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands)).
 
 **Live AI Skills**, inspired by Anthropic Agent Skills, provide a new way to rely on predefined and rich set of instructions and resources, see [detailed documentation here](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills-system.md). It's only available in the Chat agent.
 

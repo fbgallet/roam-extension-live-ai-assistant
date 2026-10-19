@@ -4,11 +4,17 @@
 
 - **Quick model switch** in the Context menu: click on the model name (header) to pick the active model for the session (the default model stays unchanged), type a model name in the input and press `Tab` to switch to the highlighted model, or `Alt + ↓/↑` to cycle through favorite models (also in the Chat panel). The active model is also used by `Ask AI`.
 - New command: `Live AI: Switch to next favorite model`.
+- `LIVEAIGEN` SmartBlock can now call **custom prompts** and **built-in prompts**: `{prompt:title}` or `{prompt:((uid))}` for a custom prompt (#liveai/prompt), `{built-in:summarize}` or `{built-in:translate:Spanish}` for a built-in prompt, combinable with `+` and your own instructions (e.g. `{built-in:summarize+((uid))}`). The content to process is the context parameter (or the current block), and the inline context of a custom prompt is taken into account. `<built-in:...>` can also be used in any text or block used as prompt.
 
 **Updates**
 
 - New models support: Gemini 4 Argon, Grok 4.7
 - Live AI API: `listModels()` now returns `isActive` and `isFavorite` for each model (`generate()` still uses the default model when no model is given).
+- Documentation: [list of all built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts) with their key, to use in custom prompts or SmartBlocks.
+
+**Fixed**
+
+- `<built-in:translate:language>` in custom prompts ignored the language, and only the first `<built-in:...>` of a custom prompt was resolved.
 
 ### v.36 (September 24th, 2026)
 

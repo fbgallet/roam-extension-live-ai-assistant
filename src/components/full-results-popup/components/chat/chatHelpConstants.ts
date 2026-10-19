@@ -95,6 +95,9 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.38 (October 2026)
 - \`Alt + ↓/↑\`: cycle through your favorite models, in the Context menu and in the Chat panel. The active model is also used by Ask AI
 - New command: \`Live AI: Switch to next favorite model\` (assign it a hotkey!)
 
+#### 🆕 **Custom & built-in prompts in SmartBlocks**
+- \`<%LIVEAIGEN:{prompt:My prompt},{page}%>\` applies your custom prompt (#liveai/prompt), \`<%LIVEAIGEN:{built-in:summarize},{children}%>\` a built-in prompt ([list of built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts))
+
 #### 🆕 **New models**
 - Gemini 4 Argon, Grok 4.7
 
@@ -125,7 +128,7 @@ export const LIVE_AI_TIPS = [
   "**Did you know?** You can **convert between formats** easily: 'Outline to Paragraph' or 'Paragraph to Outline' commands restructure your content while preserving meaning",
   "**Quick model switch**: in the Context menu, press `Alt + ↓/↑` to cycle through your favorite models (⭐ in models configuration) without closing the menu, or click on the model name to choose another one. This active model lasts for the session and is also used by Ask AI — the default model stays unchanged. Assign a hotkey to the `Live AI: Switch to next favorite model` command to switch from anywhere in Roam! (`Alt + ↓/↑` works also in the Chat panel input)",
   "**Hotkey tip**: Set a hotkey for 'Context Menu' (default: Cmd/Ctrl+Alt+A) to access Live AI quickly from any block! ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant#1-getting-started))",
-  "**SmartBlocks integration**: Use `<%LIVEAIGEN:prompt,context,target%>` in SmartBlocks templates to automate AI-powered workflows ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands))",
+  "**SmartBlocks integration**: Use `<%LIVEAIGEN:prompt,context,target%>` in SmartBlocks templates to automate AI-powered workflows. The prompt can be one of your custom prompts, `{prompt:title}`, or a built-in prompt, `{built-in:summarize}` ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands))",
   "**Query agents**: Write natural language like 'meetings with John about frontend -DONE' and let the agent build the proper Roam query or :q Datomic query (only available via the corresponding commands in Live AI context menu, not in chat) ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent))",
   "**Fuzzy & semantic search**: Using query agents or Ask Your Graph agent, end a word with `*` for fuzzy (practice* → practise, practicing) or `~` for semantic (practice~ → workout, exercise) ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent))",
   "**Did you know?** You can create **Mermaid diagrams** directly! Just select your content and choose 'Mermaid diagram' - the AI will generate flowcharts, timelines, mindmaps, and more in Roam-compatible format",
