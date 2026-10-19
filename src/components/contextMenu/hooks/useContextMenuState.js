@@ -4,12 +4,12 @@ import {
   defaultStyle,
   includeChildrenByDefault,
   logPagesNbDefault,
-  defaultModel,
   alwaysExtractPdf,
   alwaysExtractQuery,
 } from "../../..";
 import { BUILTIN_COMMANDS } from "../../../ai/prebuildCommands";
 import { getModelThinkingDefault } from "../../../utils/modelConfigHelpers";
+import { getActiveModel } from "../../../utils/activeModel";
 
 const voidRoamContext = {
   linkedRefs: false,
@@ -57,13 +57,12 @@ export const useContextMenuState = () => {
   const [isPinnedContext, setIsPinnedContext] = useState(false);
   const [customStyles, setCustomStyles] = useState([]);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
-  const [model, setModel] = useState(null);
   const [includePdfInContext, setIncludePdfInContext] = useState(alwaysExtractPdf || false);
   const [includeQueryInContext, setIncludeQueryInContext] = useState(alwaysExtractQuery || false);
 
   // Thinking Mode State
   const [thinkingEnabled, setThinkingEnabled] = useState(() =>
-    getModelThinkingDefault(defaultModel)
+    getModelThinkingDefault(getActiveModel())
   );
   const [reasoningEffort, setReasoningEffort] = useState(
     extensionStorage.get("reasoningEffort") || "low"
@@ -177,8 +176,8 @@ export const useContextMenuState = () => {
       setIncludePdfInContext(false);
       setIncludeQueryInContext(false);
     }
-    // Reset thinking to default model's (possibly user-overridden) setting
-    setThinkingEnabled(getModelThinkingDefault(defaultModel));
+    // Reset thinking to active model's (possibly user-overridden) setting
+    setThinkingEnabled(getModelThinkingDefault(getActiveModel()));
     selectedBlocks.current = null;
     selectedTextInBlock.current = null;
     isFirstBlock.current = null;
@@ -234,8 +233,6 @@ export const useContextMenuState = () => {
     setIsPinnedContext,
     additionalPrompt,
     setAdditionalPrompt,
-    model,
-    setModel,
     includePdfInContext,
     setIncludePdfInContext,
     includePdfInContextRef,

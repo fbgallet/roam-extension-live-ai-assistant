@@ -2,9 +2,9 @@ import React from "react";
 import { Tooltip } from "@blueprintjs/core";
 import { estimateTokensPricing, modelAccordingToProvider } from "../../../ai/aiAPIsHub";
 
-const TokenEstimateDisplay = ({ estimatedTokens, defaultModel }) => {
+const TokenEstimateDisplay = ({ estimatedTokens, model }) => {
   const insertEstimatedCost = () => {
-    let cost = estimateTokensPricing(defaultModel, parseInt(estimatedTokens));
+    let cost = estimateTokensPricing(model, parseInt(estimatedTokens));
     return cost ? ` (±${cost}$)` : "";
   };
 
@@ -12,7 +12,7 @@ const TokenEstimateDisplay = ({ estimatedTokens, defaultModel }) => {
     return null;
   }
 
-  const modelTokensLimit = modelAccordingToProvider(defaultModel).tokensLimit;
+  const modelTokensLimit = modelAccordingToProvider(model).tokensLimit;
 
   return (
     <div className="estimate-tokens">

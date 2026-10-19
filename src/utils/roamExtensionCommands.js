@@ -51,6 +51,8 @@ import {
 } from "../ai/dataExtraction";
 import { flexibleUidRegex, sbParamRegex } from "./regex";
 import { openChatPopup } from "../components/full-results-popup";
+import { modelAccordingToProvider } from "../ai/aiAPIsHub";
+import { cycleActiveModel, isActiveModelDefault } from "./activeModel";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
   extensionAPI.ui.commandPalette.addCommand({
@@ -198,6 +200,21 @@ export const loadRoamExtensionCommands = (extensionAPI) => {
       aiCompletionRunner({
         e,
         sourceUid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+      });
+    },
+  });
+
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI: Switch to next favorite model",
+    callback: () => {
+      const model = cycleActiveModel(1);
+      AppToaster.show({
+        message: model
+          ? `Active AI model (this session): ${
+              modelAccordingToProvider(model)?.name || model
+            }${isActiveModelDefault() ? " (default)" : ""}`
+          : "Add favorite models (⭐ in models configuration) to switch between them",
+        timeout: 3000,
       });
     },
   });

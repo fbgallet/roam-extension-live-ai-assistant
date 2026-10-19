@@ -8,7 +8,6 @@ import {
   ollamaModels,
   isResponseToSplit,
   defaultStyle,
-  extensionStorage,
   uidsInPrompt,
   isTitleToAdd,
   ANTHROPIC_API_KEY,
@@ -16,6 +15,7 @@ import {
 import { getDefaultWebSearchModel } from "./modelRegistry";
 import { isModelVisible, getModelConfig } from "../utils/modelConfigHelpers";
 import { getOrderedProviders } from "../utils/modelConfigHelpers";
+import { getActiveModel } from "../utils/activeModel";
 import {
   addContentToBlock,
   createChildBlock,
@@ -269,10 +269,9 @@ export const aiCompletionRunner = async ({
   if (prompt === "Web search") {
     // console.log("instantModel :>> ", instantModel);
     if (!instantModel) {
-      // Determine default web search model based on user's default model and configuration
+      // Determine default web search model based on user's active model and configuration
       const modelConfig = getModelConfig();
-      const currentDefaultModel =
-        extensionStorage.get("defaultModel") || defaultModel;
+      const currentDefaultModel = getActiveModel();
       const orderedProviders = getOrderedProviders();
 
       instantModel = getDefaultWebSearchModel(
@@ -454,7 +453,7 @@ export const insertCompletion = async ({
   lastCompletion.target = target;
   lastCompletion.selectedUids = selectedUids;
 
-  let model = instantModel || defaultModel;
+  let model = instantModel || getActiveModel();
 
   if (model === "first OpenRouter model") {
     model = openRouterModels.length

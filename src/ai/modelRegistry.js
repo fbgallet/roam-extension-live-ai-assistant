@@ -455,6 +455,26 @@ export const MODEL_REGISTRY = {
   },
 
   // ==================== Google Models ====================
+  "gemini-4-argon": {
+    id: "gemini-4-argon",
+    name: "Gemini 4 Argon",
+    provider: "Google",
+    contextLength: 1048576,
+    maxOutput: 65536,
+    pricing: { input: 4, output: 20 },
+    capabilities: {
+      thinking: true,
+      imageInput: true,
+      webSearch: true,
+      fileInput: true,
+      videoInput: true,
+      audioInput: true,
+    },
+    thinkingDefault: true,
+    thinkingOnly: true,
+    visibleByDefault: true,
+    aliases: ["gemini-4", "gemini-4-latest"],
+  },
   "gemini-3.1-pro-preview": {
     id: "gemini-3.1-pro-preview",
     name: "Gemini 3.1 Pro",
@@ -472,7 +492,7 @@ export const MODEL_REGISTRY = {
     },
     thinkingDefault: true,
     thinkingOnly: true,
-    visibleByDefault: true,
+    visibleByDefault: false,
     aliases: ["gemini-3.1-pro", "gemini-pro-latest"],
   },
 
@@ -495,27 +515,6 @@ export const MODEL_REGISTRY = {
     visibleByDefault: true,
     preferredDefault: true,
     aliases: ["gemini-3-8-flash", "gemini-flash-latest"],
-  },
-
-  "gemini-3.7-flash": {
-    id: "gemini-3.7-flash",
-    name: "Gemini 3.7 Flash",
-    provider: "Google",
-    contextLength: 1048576,
-    maxOutput: 65536,
-    pricing: { input: 0.75, output: 3.75 }, // through December 31, 2026, then x2
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-      videoInput: true,
-      audioInput: true,
-    },
-    thinkingOnly: true,
-    visibleByDefault: false,
-    preferredDefault: false,
-    aliases: ["gemini-3-7-flash"],
   },
 
   "gemini-3.5-flash-lite": {

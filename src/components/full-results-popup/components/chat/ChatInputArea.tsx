@@ -50,6 +50,10 @@ import {
 } from "./AdvancedOptionsMenu";
 import { isThinkingModel, isThinkingOnly } from "../../../../ai/modelRegistry";
 import {
+  getModelCycleStep,
+  getNextModelInCycle,
+} from "../../../../utils/activeModel";
+import {
   getProviderModels,
   isModelVisible,
   isModelFavorited,
@@ -1474,7 +1478,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         </Tooltip>
         <Tooltip
           openOnTargetFocus={false}
-          content="Switch AI model"
+          content="Switch AI model (Alt+↓ / Alt+↑: next / previous favorite)"
           isOpen={isModelMenuOpen ? false : undefined}
         >
           <div className="full-results-chat-model-selector">
@@ -1707,6 +1711,15 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
               e.target.style.height = e.target.scrollHeight + "px";
             }}
             onKeyDown={(e) => {
+              // Alt+↓ / Alt+↑: next / previous favorite model
+              const modelStep = getModelCycleStep(e);
+              if (modelStep) {
+                e.preventDefault();
+                const nextModel = getNextModelInCycle(selectedModel, modelStep);
+                if (nextModel) onModelSelect(nextModel);
+                return;
+              }
+
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
 

@@ -16,6 +16,7 @@ Easy to use like a simple chat but with the power of an agent capable of queryin
 - **Rich Markdown**: Headers, lists, tables, highlights - auto-converted to Roam format
 - Support images, .pdf and text files like .md or .csv (with most models), .docx/.pptx (OpenAI models) and even audio or video analysis (with Gemini models)
 - **Slash Commands**: Type / to access quick commands (clear, close, change mode, save, switch model) or force-use any tool for a single turn
+- **Quick model switch**: \`Alt + ↓/↑\` cycles through your favorite models
 - **Edit Messages**: Click to edit previous messages, rendered as Roam blocks
 
 #### **Context panel**
@@ -55,7 +56,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.36 (September 2026) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.38 (October 2026) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
@@ -85,15 +86,23 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "36";
+export const WHATS_NEW_VERSION = "38";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.36 (September 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.38 (October 2026) 🎉
+
+#### 🆕 **Quick model switch**
+- In the Context menu, click on the model name to choose the **active model** for the session (default model unchanged), or type a model name in the input and press \`Tab\` to switch to the highlighted model
+- \`Alt + ↓/↑\`: cycle through your favorite models, in the Context menu and in the Chat panel. The active model is also used by Ask AI
+- New command: \`Live AI: Switch to next favorite model\` (assign it a hotkey!)
 
 #### 🆕 **New models**
+- Gemini 4 Argon, Grok 4.7
+
+#### In v.36: **New models**
 - GPT 6 Luna, Sol & Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare
 - GPT Image 2.5 models: \`quality: xhigh\` and \`quality: max\` can be requested directly in the image prompt
 
-#### **Fixed**
+#### In v.36: **Fixed**
 - Pasting text containing a \`/\` in the Chat input could open the slash commands menu, which then stayed stuck on screen and captured keyboard input
 - \`LIVEAIGEN\` SmartBlock: with \`{append}\`/\`{replace}\` targets, multi-line responses left the host block empty (the first line now goes into it), and \`{page(title)}\` context also included the current page
 
@@ -114,6 +123,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 export const LIVE_AI_TIPS = [
   "**AI tables**: Right-click a Roam table's row or column handle (or its ➕ add-row/add-col buttons) to **auto-complete** empty or `[placeholder]` cells, **update** filled ones, or **generate** new rows/columns with AI — guided by the headers, an example, your instructions and optional context (sidebar, page, [[pages]], or notes written after `{{[[table]]}}`). Cells fill in progressively!",
   "**Did you know?** You can **convert between formats** easily: 'Outline to Paragraph' or 'Paragraph to Outline' commands restructure your content while preserving meaning",
+  "**Quick model switch**: in the Context menu, press `Alt + ↓/↑` to cycle through your favorite models (⭐ in models configuration) without closing the menu, or click on the model name to choose another one. This active model lasts for the session and is also used by Ask AI — the default model stays unchanged. Assign a hotkey to the `Live AI: Switch to next favorite model` command to switch from anywhere in Roam! (`Alt + ↓/↑` works also in the Chat panel input)",
   "**Hotkey tip**: Set a hotkey for 'Context Menu' (default: Cmd/Ctrl+Alt+A) to access Live AI quickly from any block! ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant#1-getting-started))",
   "**SmartBlocks integration**: Use `<%LIVEAIGEN:prompt,context,target%>` in SmartBlocks templates to automate AI-powered workflows ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands))",
   "**Query agents**: Write natural language like 'meetings with John about frontend -DONE' and let the agent build the proper Roam query or :q Datomic query (only available via the corresponding commands in Live AI context menu, not in chat) ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent))",
@@ -134,6 +144,7 @@ export const CHAT_TIPS = [
   "**Live AI Skills**: Advanced automated workflows with instructions, resources and records. Skills can read context, follow instructions, and write structured output to any place in your graph! ([detailed doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))",
   "**Enrich context on the fly**: Add pages or blocks to the context just by asking in natural language (if tools are enabled), or simply mention pages in your prompt, the agent will decide if it's needed to load their content or reference in the context.",
   "**Slash commands**: Type / in the chat input to access quick commands: clear chat, close panel, switch between Agent/Chat mode, save conversation, or search and switch models — all without leaving the keyboard!",
+  "**Switch model with the keyboard**: press `Alt + ↓/↑` in the chat input to cycle through your favorite models (⭐ in models configuration).",
   "**Edit messages**: You can edit any previous message in the chat by clicking on it. The message is rendered as a Roam block for easy editing.",
   "**Skills with Records**: Skills can now write output directly to your graph using Records — define a target page or block, and the agent will create or update content there. Use relative dates like \\`[[today]]\\` or \\`[[last week]]\\` for dynamic targets ([doc](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/liveai-skills.md))",
   "**Skills via SmartBlocks**: Trigger specific skills from SmartBlocks with \\`<%LIVEAIGEN:prompt,context,{chat:skill:skill_name}%>\\` — great for automated workflows and repeatable processes!",

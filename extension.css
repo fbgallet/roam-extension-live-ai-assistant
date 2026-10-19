@@ -446,6 +446,18 @@
   > .bp3-heading {
   padding-right: 0;
 }
+.laia-active-model-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border-radius: 3px;
+  cursor: pointer !important;
+}
+.laia-active-model-target:hover {
+  background-color: rgba(138, 155, 168, 0.15);
+}
 
 /* BlueprintJS HTML Selects */
 .str-aicommands-menu .bp3-html-select select {

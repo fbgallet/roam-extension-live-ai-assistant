@@ -1,3 +1,14 @@
+### v.38 (October, 2026)
+
+**New features**
+
+- **Quick model switch** in the Context menu: click on the model name (header) to pick the active model for the session (the default model stays unchanged), type a model name in the input and press `Tab` to switch to the highlighted model, or `Alt + ↓/↑` to cycle through favorite models (also in the Chat panel). The active model is also used by `Ask AI`.
+- New command: `Live AI: Switch to next favorite model`.
+
+**Updates**
+
+- New models support: Gemini 4 Argon, Grok 4.7
+
 ### v.36 (September 24th, 2026)
 
 **Updates**

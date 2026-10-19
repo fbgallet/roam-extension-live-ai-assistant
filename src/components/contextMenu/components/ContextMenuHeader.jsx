@@ -8,11 +8,11 @@ import {
   getCurrentAskGraphMode,
   setSessionAskGraphMode,
 } from "../../../ai/agents/search-agent/ask-your-graph";
-import { modelAccordingToProvider } from "../../../ai/aiAPIsHub";
 import ThinkingControls from "./ThinkingControls";
+import ActiveModelSelector from "./ActiveModelSelector";
 
 const ContextMenuHeader = ({
-  defaultModel,
+  activeModel,
   setIsHelpOpen,
   setIsOpen,
   setIsMCPConfigOpen,
@@ -163,12 +163,12 @@ const ContextMenuHeader = ({
               width: "100%",
             }}
           >
-            <span>
-              Default model:{" "}
-              <b>{modelAccordingToProvider(defaultModel).name}</b>
-            </span>
+            <ActiveModelSelector
+              activeModel={activeModel}
+              inputRef={inputRef}
+            />
             <ThinkingControls
-              defaultModel={defaultModel}
+              model={activeModel}
               thinkingEnabled={thinkingEnabled}
               setThinkingEnabled={setThinkingEnabled}
               reasoningEffort={reasoningEffort}

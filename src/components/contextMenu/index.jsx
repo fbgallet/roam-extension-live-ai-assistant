@@ -44,7 +44,18 @@ import {
   estimateContextTokens,
   modelAccordingToProvider,
 } from "../../ai/aiAPIsHub";
-import { getModelCapabilities } from "../../utils/modelConfigHelpers";
+import {
+  getModelCapabilities,
+  getModelThinkingDefault,
+} from "../../utils/modelConfigHelpers";
+import {
+  cycleActiveModel,
+  getActiveModelOverride,
+  getModelCycleStep,
+  setActiveModel,
+  useActiveModel,
+} from "../../utils/activeModel";
+import { AppToaster } from "../Toaster";
 import { mcpManager } from "../../ai/agents/mcp-agent/mcpManager";
 import { roamAudioRegex } from "../../utils/regex";
 import ContextMenuHeader from "./components/ContextMenuHeader";
@@ -110,7 +121,6 @@ export const StandaloneContextMenu = () => {
     setIsPinnedContext,
     additionalPrompt,
     setAdditionalPrompt,
-    setModel,
     includePdfInContext,
     setIncludePdfInContext,
     includePdfInContextRef,
@@ -171,6 +181,52 @@ export const StandaloneContextMenu = () => {
     // Functions
     handleClose,
   } = useContextMenuState();
+
+  // Model used for this session (switched from header selector, Tab or Alt+↑/↓)
+  const activeModel = useActiveModel();
+  const activeItemRef = useRef(null);
+
+  useEffect(() => {
+    setThinkingEnabled(getModelThinkingDefault(activeModel));
+  }, [activeModel]);
+
+  // Handled in capture phase, before the Suggest input: otherwise Blueprint
+  // moves the active item on arrows and blurs the input on Tab
+  const handleModelSwitchKeys = (e) => {
+    const step = getModelCycleStep(e);
+    if (step) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!cycleActiveModel(step))
+        AppToaster.show({
+          message:
+            "Add favorite models (⭐ in models configuration) to switch between them with Alt+↓ / Alt+↑",
+          timeout: 5000,
+        });
+      return;
+    }
+    // Tab on a model in the list: switch to it without running a command
+    const item = activeItemRef.current;
+    const input = inputRef.current;
+    if (
+      e.key === "Tab" &&
+      !e.shiftKey &&
+      e.target === input &&
+      input.value &&
+      item?.category === "AI MODEL" &&
+      !item.isImageGeneration
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      setActiveModel(item.model);
+      // Clear the uncontrolled Suggest query the way React expects it
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      ).set.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  };
 
   useEffect(() => {
     window.LiveAI.toggleContextMenu = ({
@@ -621,6 +677,17 @@ export const StandaloneContextMenu = () => {
     [isOutlinerAgent, isCompletionOnly, additionalPrompt],
   );
 
+  // Model switched for this session, unless the command picks its own model
+  // (web search & image generation need specific capabilities)
+  const getActiveModelForCommand = (command) => {
+    if (
+      command?.prompt === "Web search" ||
+      command?.name?.startsWith("Image generation")
+    )
+      return undefined;
+    return getActiveModelOverride() || undefined;
+  };
+
   // Wrapper function that calls the extracted command processing logic
   const handleClickOnCommand = async ({
     e,
@@ -632,7 +699,7 @@ export const StandaloneContextMenu = () => {
       e,
       command,
       prompt,
-      model: cmdModel,
+      model: cmdModel || getActiveModelForCommand(command),
       // Context and state
       isChildrenTreeToInclude: isChildrenTreeToIncludeRef.current,
       roamContextRef,
@@ -855,7 +922,12 @@ export const StandaloneContextMenu = () => {
         return <div>ModelsMenu is undefined!</div>;
       }
       return (
-        <ModelsMenu callback={callback} command={command} setModel={setModel} />
+        <ModelsMenu
+          callback={callback}
+          command={command}
+          setModel={setActiveModel}
+          activeModel={activeModel}
+        />
       );
     }
     return null;
@@ -1377,6 +1449,7 @@ export const StandaloneContextMenu = () => {
           className="bp3-elevation-3 aicommands-div"
           draggable={true}
           onClick={(e) => e.stopPropagation()}
+          onKeyDownCapture={handleModelSwitchKeys}
           style={{
             position: "fixed",
             left: position.x,
@@ -1395,7 +1468,7 @@ export const StandaloneContextMenu = () => {
             }}
           >
             <ContextMenuHeader
-              defaultModel={defaultModel}
+              activeModel={activeModel}
               setIsHelpOpen={setIsHelpOpen}
               setIsOpen={setIsOpen}
               setIsMCPConfigOpen={setIsMCPConfigOpen}
@@ -1438,7 +1511,7 @@ export const StandaloneContextMenu = () => {
 
             <TokenEstimateDisplay
               estimatedTokens={estimatedTokens}
-              defaultModel={defaultModel}
+              model={activeModel}
             />
             <StyleSelectionPanel
               style={style}
@@ -1463,6 +1536,9 @@ export const StandaloneContextMenu = () => {
               setTargetBlock={setTargetBlock}
               additionalPrompt={additionalPrompt}
               setAdditionalPrompt={setAdditionalPrompt}
+              onActiveItemChange={(item) => {
+                activeItemRef.current = item;
+              }}
             />
           </Menu>
           <HelpDialog

@@ -12,23 +12,23 @@ import { AppToaster } from "../../Toaster";
  * - A toggle button (brain icon) to enable/disable thinking
  * - A native select for effort level (minimal, low, medium, high)
  *
- * The controls are always accessible but visually greyed if the default model
+ * The controls are always accessible but visually greyed if the active model
  * doesn't support thinking. When a command is run with a different model that
  * supports thinking, the settings will still apply.
  */
 const ThinkingControls = ({
-  defaultModel,
+  model,
   thinkingEnabled,
   setThinkingEnabled,
   reasoningEffort,
   setReasoningEffort,
   inputRef,
 }) => {
-  // Check if the default model supports thinking
-  const defaultModelSupportsThinking = isThinkingModel(defaultModel);
+  // Check if the active model supports thinking
+  const modelSupportsThinking = isThinkingModel(model);
   // Only thinking-only models can't be turned off; thinkingDefault is just a
   // starting state, so it must NOT disable the toggle here.
-  const isAlwaysOn = isThinkingOnly(defaultModel);
+  const isAlwaysOn = isThinkingOnly(model);
 
   const handleThinkingToggle = (e) => {
     e.stopPropagation();
@@ -60,7 +60,7 @@ const ThinkingControls = ({
         display: "inline-flex",
         alignItems: "center",
         marginLeft: "5px",
-        opacity: defaultModelSupportsThinking ? 1 : 0.5,
+        opacity: modelSupportsThinking ? 1 : 0.5,
       }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -83,7 +83,7 @@ const ThinkingControls = ({
       </Tooltip>
       {thinkingEnabled && (
         <HTMLSelect
-          options={getThinkingEffortOptions(defaultModel)}
+          options={getThinkingEffortOptions(model)}
           value={reasoningEffort}
           minimal={true}
           onChange={(e) => handleEffortChange(e.currentTarget.value)}

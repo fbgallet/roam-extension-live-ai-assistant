@@ -39,6 +39,14 @@ const HelpDialog = ({ isOpen, onClose }) => {
             <em>Open Chat panel</em>
           </li>
           <li>
+            <em>Switch to next favorite model</em> (active model for the
+            session, also used by <em>Ask AI</em>). In the Context Menu or Chat
+            panel: <code>Alt + ↓</code> / <code>Alt + ↑</code> for next /
+            previous favorite model. In the Context Menu, you can also type a
+            model name in the input and press <code>Tab</code> to switch to the
+            highlighted model
+          </li>
+          <li>
             <em>Start/Pause recording your vocal note</em>
             <br />
             (you can dictate a command directly and route it to AI generative or

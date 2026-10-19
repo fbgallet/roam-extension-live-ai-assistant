@@ -1,5 +1,25 @@
 {
   "models": {
+    "gemini-4-argon": {
+      "id": "gemini-4-argon",
+      "name": "Gemini 4 Argon",
+      "provider": "Google",
+      "contextLength": 1048576,
+      "maxOutput": 65536,
+      "pricing": { "input": 4, "output": 20 },
+      "capabilities": {
+        "thinking": true,
+        "imageInput": true,
+        "webSearch": true,
+        "fileInput": true,
+        "videoInput": true,
+        "audioInput": true
+      },
+      "thinkingDefault": true,
+      "thinkingOnly": true,
+      "visibleByDefault": true,
+      "aliases": ["gemini-4", "gemini-4-latest"]
+    },
     "grok-4.7": {
       "id": "grok-4.7",
       "name": "Grok 4.7",

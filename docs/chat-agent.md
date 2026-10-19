@@ -47,6 +47,7 @@ The mode automatically switches based on whether you have tools enabled. With an
 - Switch between different AI models with one click
 - Apply built-in or custom styles (via `#liveai/style`) to format responses
 - Rapid model switching: type the first letters of the provider name in the context menu
+- `Alt + ↓/↑` in the chat input: cycle through your favorite models (⭐ in models configuration)
 
 **Prompt Integration**
 
@@ -462,7 +463,7 @@ The chat input supports several slash commands for quick actions:
 - `/image-edit` — Enter image edition mode (when an image has been generated)
 - `/exit-edit` — Exit image edition mode
 
-You can also type `/` followed by a model name to quickly switch models.
+You can also type `/` followed by a model name to quickly switch models, or press `Alt + ↓/↑` to cycle through your favorite models.
 
 ---
 
@@ -716,7 +717,7 @@ When the agent uses tools, they're displayed in the conversation:
 - GPT-5.6-luna
 - Gemini 3.6 Flash
 
-**Switching models**: Type the first letters of the provider name in the context menu for instant switching
+**Switching models**: Type the first letters of the provider name in the context menu for instant switching, or press `Alt + ↓/↑` to cycle through your favorite models
 
 ---
 

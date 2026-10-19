@@ -18,6 +18,7 @@ const CommandSuggest = ({
   setTargetBlock,
   additionalPrompt,
   setAdditionalPrompt,
+  onActiveItemChange,
 }) => {
   return (
     <>
@@ -31,6 +32,7 @@ const CommandSuggest = ({
         itemPredicate={filterCommands}
         scrollToActiveItem={true}
         onItemSelect={handleItemSelect}
+        onActiveItemChange={onActiveItemChange}
         inputProps={{
           className: "str-aicommands-input",
           placeholder: "Live AI command...",

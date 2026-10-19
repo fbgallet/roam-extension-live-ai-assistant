@@ -42,6 +42,9 @@ const ModelsMenu = ({
   setModel,
   roleStructure = "menuitem",
   isConversationToContinue,
+  // Selection-only mode: called with the model instead of running a command
+  onSelectModel = undefined,
+  activeModel = undefined,
 }) => {
   const modelConfig = getModelConfig();
   // Read defaultModel from storage to get the current value (not stale import)
@@ -54,6 +57,10 @@ const ModelsMenu = ({
 
   const handleClickOnModel = async (e, prefix, modelId) => {
     let model = getModelFromMenu(e, prefix, modelId);
+    if (onSelectModel) {
+      onSelectModel(model);
+      return;
+    }
     await callback({ e, command, prompt, model, isConversationToContinue });
   };
 
@@ -70,7 +77,8 @@ const ModelsMenu = ({
     // Always set as main default model (web search will use it automatically if it supports web search)
     console.log("default model :>> ", model);
     setDefaultModel(model);
-    setModel(model);
+    setModel?.(model);
+    onSelectModel?.(model);
     AppToaster.show({
       message: `Default AI model set to: ${model}${
         isWebSearch ? " (will be used for web search)" : ""
@@ -122,7 +130,11 @@ const ModelsMenu = ({
     return (
       <MenuItem
         key={modelId}
-        icon={currentDefaultModel === prefix + modelId && "pin"}
+        icon={
+          currentDefaultModel === prefix + modelId
+            ? "pin"
+            : activeModel === prefix + modelId && "small-tick"
+        }
         onClick={(e) => handleClickOnModel(e, prefix, modelId)}
         onKeyDown={(e) => handleKeyDownOnModel(e, prefix, modelId)}
         onContextMenu={(e) => handleContextMenu(e, prefix, modelId)}
