@@ -99,7 +99,7 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.38 (October 2026)
 - \`<%LIVEAIGEN:{prompt:My prompt},{page}%>\` applies your custom prompt (#liveai/prompt), \`<%LIVEAIGEN:{built-in:summarize},{children}%>\` a built-in prompt ([list of built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts))
 
 #### 🆕 **New models**
-- Gemini 4 Argon, Grok 4.7
+- Gemini 4 Argon, Grok 4.7, Claude Haiku 5.5
 
 #### In v.36: **New models**
 - GPT 6 Luna, Sol & Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare

@@ -21,7 +21,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 ### New in v.38 (October, 2026)
 
 - 🆕 **Quick model switch** in the Context menu: click on the model name to choose the active model for the session, or press `Alt + ↓/↑` to cycle through your favorite models (also in the Chat panel). Also used by `Ask AI`, and available as a command: `Live AI: Switch to next favorite model`.
-- New models support: Gemini 4 Argon, Grok 4.7
+- New models support: Gemini 4 Argon, Grok 4.7, , Claude Haiku 5.5
 
 ### New in v.36 (September, 2026)
 

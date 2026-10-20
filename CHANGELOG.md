@@ -8,7 +8,7 @@
 
 **Updates**
 
-- New models support: Gemini 4 Argon, Grok 4.7
+- New models support: Gemini 4 Argon, Grok 4.7, Claude Haiku 5.5
 - Live AI API: `listModels()` now returns `isActive` and `isFavorite` for each model (`generate()` still uses the default model when no model is given).
 - Documentation: [list of all built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts) with their key, to use in custom prompts or SmartBlocks.
 

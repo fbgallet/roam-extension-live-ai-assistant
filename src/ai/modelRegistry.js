@@ -308,25 +308,6 @@ export const MODEL_REGISTRY = {
     aliases: ["claude-fable", "claude fable", "fable-latest"],
   },
 
-  "claude-fable-5": {
-    id: "claude-fable-5",
-    name: "Claude Fable 5",
-    provider: "Anthropic",
-    contextLength: 1000000,
-    maxOutput: 128000,
-    pricing: { input: 10, output: 50 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    thinkingOnly: true,
-    visibleByDefault: false,
-    aliases: ["claude fable 5"],
-  },
-
   "claude-opus-5-5": {
     id: "claude-opus-5-5",
     name: "Claude Opus 5.5",
@@ -349,23 +330,6 @@ export const MODEL_REGISTRY = {
       "claude opus 5.5",
       "opus-latest",
     ],
-  },
-  "claude-opus-5": {
-    id: "claude-opus-5",
-    name: "Claude Opus 5",
-    provider: "Anthropic",
-    contextLength: 1000000,
-    maxOutput: 128000,
-    pricing: { input: 5, output: 25 },
-    capabilities: {
-      thinking: true,
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-    aliases: ["claude-5-opus"],
   },
 
   "claude-opus-4-6": {
@@ -409,25 +373,6 @@ export const MODEL_REGISTRY = {
       "claude sonnet 5.5",
       "sonnet-latest",
     ],
-  },
-
-  "claude-sonnet-5": {
-    id: "claude-sonnet-5",
-    name: "Claude Sonnet 5",
-    provider: "Anthropic",
-    contextLength: 1000000,
-    maxOutput: 128000,
-    pricing: { input: 2, output: 10 },
-    capabilities: {
-      thinking: true, // Supports thinking mode (toggled via UI)
-      imageInput: true,
-      webSearch: true,
-      fileInput: true,
-    },
-    thinkingDefault: true,
-    visibleByDefault: false,
-
-    aliases: ["claude-sonnet-5", "claude sonnet 5"],
   },
 
   "claude-haiku-5-5": {
@@ -801,6 +746,12 @@ export function registerCustomModelThinking(
 export function getCustomModelThinking(identifier) {
   if (!identifier) return null;
   const cleanId = identifier.replace(/\+thinking/i, "").trim();
+  // A built-in model always keeps its registry thinking config: a custom model
+  // declared with the same id (e.g. added before native support, with a legacy
+  // "anthropic-budget" scheme) must not override it — that sent
+  // thinking.type "enabled" to Opus/Sonnet 5.5, which reject it with a 400.
+  const builtIn = MODEL_REGISTRY[cleanId];
+  if (builtIn && !builtIn.isDynamic) return null;
   if (CUSTOM_MODEL_THINKING[cleanId]) return CUSTOM_MODEL_THINKING[cleanId];
   // Custom models are keyed by their raw id, but chat/menu identifiers may carry
   // a dynamic-provider prefix (openRouter/, groq/, ollama/) — try without it.
