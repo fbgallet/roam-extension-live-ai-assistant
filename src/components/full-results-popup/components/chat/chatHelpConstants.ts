@@ -95,6 +95,11 @@ export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.38 (October 2026)
 - \`Alt + ↓/↑\`: cycle through your favorite models, in the Context menu and in the Chat panel. The active model is also used by Ask AI
 - New command: \`Live AI: Switch to next favorite model\` (assign it a hotkey!)
 
+#### 🆕 **Inline chat auto mode** (on by default)
+- Chat in blocks with the keyboard only: \`Enter\` at the end of your turn (block starting with \`Me:\`) shows a hint: \`Space\` → the AI responds, \`Tab\` → complete your prompt, \`Enter\` → leave the conversation
+- Your next turn is created after each response. After the first one: \`Shift+Enter\` regenerates it, \`Shift+Esc\` deletes it
+- Toggle it in settings or with the conversation icon in the Context menu header. New command \`Live AI: Continue conversation in blocks\` (assign it a hotkey!). Setting *Inline chat display*: continue in the **right sidebar** or the chat panel
+
 #### 🆕 **Custom & built-in prompts in SmartBlocks**
 - \`<%LIVEAIGEN:{prompt:My prompt},{page}%>\` applies your custom prompt (#liveai/prompt), \`<%LIVEAIGEN:{built-in:summarize},{children}%>\` a built-in prompt ([list of built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts))
 
@@ -127,6 +132,7 @@ export const LIVE_AI_TIPS = [
   "**AI tables**: Right-click a Roam table's row or column handle (or its ➕ add-row/add-col buttons) to **auto-complete** empty or `[placeholder]` cells, **update** filled ones, or **generate** new rows/columns with AI — guided by the headers, an example, your instructions and optional context (sidebar, page, [[pages]], or notes written after `{{[[table]]}}`). Cells fill in progressively!",
   "**Did you know?** You can **convert between formats** easily: 'Outline to Paragraph' or 'Paragraph to Outline' commands restructure your content while preserving meaning",
   "**Quick model switch**: in the Context menu, press `Alt + ↓/↑` to cycle through your favorite models (⭐ in models configuration) without closing the menu, or click on the model name to choose another one. This active model lasts for the session and is also used by Ask AI — the default model stays unchanged. Assign a hotkey to the `Live AI: Switch to next favorite model` command to switch from anywhere in Roam! (`Alt + ↓/↑` works also in the Chat panel input)",
+  "**Chat in blocks with the keyboard only**: in a conversation in blocks, press `Enter` at the end of your turn (block starting with `Me:`): `Space` asks the AI to respond, `Tab` lets you complete your prompt, `Enter` leaves the conversation. Your next turn is created after each response; after the first one, `Shift+Enter` regenerates it and `Shift+Esc` deletes it. Toggle the auto mode with the conversation icon in the Context menu header, bind `Live AI: Continue conversation in blocks` to a hotkey, and hold these chats in the right sidebar with the setting 'Inline chat display'.",
   "**Hotkey tip**: Set a hotkey for 'Context Menu' (default: Cmd/Ctrl+Alt+A) to access Live AI quickly from any block! ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant#1-getting-started))",
   "**SmartBlocks integration**: Use `<%LIVEAIGEN:prompt,context,target%>` in SmartBlocks templates to automate AI-powered workflows. The prompt can be one of your custom prompts, `{prompt:title}`, or a built-in prompt, `{built-in:summarize}` ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#5-smartblocks-commands))",
   "**Query agents**: Write natural language like 'meetings with John about frontend -DONE' and let the agent build the proper Roam query or :q Datomic query (only available via the corresponding commands in Live AI context menu, not in chat) ([more details](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/query-agents.md#natural-language-query-agent))",

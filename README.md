@@ -20,6 +20,7 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ### New in v.38 (October, 2026)
 
+- **Inline chat auto mode** (on by default; toggle in settings or with the conversation icon in the Context menu header): chat in blocks with the keyboard only.
 - 🆕 **Quick model switch** in the Context menu: click on the model name to choose the active model for the session, or press `Alt + ↓/↑` to cycle through your favorite models (also in the Chat panel). Also used by `Ask AI`, and available as a command: `Live AI: Switch to next favorite model`.
 - New models support: Gemini 4 Argon, Grok 4.7, , Claude Haiku 5.5
 
@@ -148,6 +149,9 @@ But you can also easily continue any conversation with an AI Assistant inline in
 - click on the button to continue the conversation, or run the usual AI generation command, or click on "Continue the conversation" command in Live AI context menu (all previous sibling blocks and their children will be taken into account).
   - click + `Alt` on the button to continue conversation will insert **suggestions**. Only the selected one will be used as prompt.
 - you can easily switch model during the conversation, just `right-click` on the conversation icon and choose another model
+- **Where the conversation is displayed**: the setting `Inline chat display` lets you continue it in the Roam **right sidebar** (the block is folded in the main window) or directly in the **Chat panel**.
+- **Command palette**: `Live AI: Continue conversation in blocks` answers the user turn where the cursor is (or starts your next turn if the cursor is in an AI response). Bind it to a hotkey in Roam settings for a keyboard-only flow.
+- **Auto mode** (setting `Inline chat auto mode`, enabled by default, also toggled by the conversation icon in the Live AI context menu header): press `Enter` at the end of your turn (block starting with your chat role, e.g. `Me:`, or one of its child blocks), as usual a new block is created and a hint appears: `Space` → the AI responds, `Tab` → the block becomes a child to complete your prompt, `Enter` → leave the conversation, any other key → just keep writing. After each AI response (including the first one, when the prompt block is nested in a parent block), your next turn is created and focused for you; if you don't write anything in it and leave it (e.g. `Esc`), it is removed. After the first response only, `Shift+Enter` generates it again and `Shift+Esc` deletes it. Buttons of previous turns are removed as the conversation goes on. Only the last turn of a conversation can be answered.
 - You can even ask one AI to respond to another and follow the conversation between two AIs: `right-click` on the conversation icon at the level of the last AI's response to choose the model that will respond.
 
 ### Apply built-in prompts to existing content

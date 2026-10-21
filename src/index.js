@@ -25,6 +25,7 @@ import {
   disconnectQueryObserver,
 } from "./utils/domElts";
 import { loadRoamExtensionCommands } from "./utils/roamExtensionCommands";
+import { setInlineChatAutoListener } from "./utils/inlineChatAuto";
 import {
   getModelsInfo,
   imageGenerationModels,
@@ -115,6 +116,8 @@ export let ollamaModels = [];
 export let ollamaServer;
 export let groqModels = [];
 export let chatRoles;
+export let inlineChatDisplay;
+export let inlineChatAutoMode;
 export let assistantCharacter = defaultAssistantCharacter;
 export let defaultStyle;
 export let ttsVoice;
@@ -444,6 +447,13 @@ function getRolesFromString(str, model) {
         ? getAssistantRoleRegex(splittedStr[1].trim())
         : null,
   };
+}
+
+// Used by the settings panel and the context menu toggle
+export async function setInlineChatAutoMode(isEnabled) {
+  inlineChatAutoMode = isEnabled;
+  setInlineChatAutoListener(isEnabled);
+  await extensionStorage.set("inlineChatAutoMode", isEnabled);
 }
 
 export function getInstantAssistantRole(instantModel) {
@@ -1209,6 +1219,31 @@ function getPanelConfig() {
         },
       },
       {
+        id: "inlineChatDisplay",
+        name: "Inline chat display",
+        description:
+          "Where to continue a conversation when you click on the chat button of inline AI responses (Cmd/Ctrl + click always opens the chat panel). 'right sidebar' shows the conversation in Roam right sidebar:",
+        action: {
+          type: "select",
+          items: ["main window", "right sidebar", "chat panel"],
+          onChange: (evt) => {
+            inlineChatDisplay = evt;
+          },
+        },
+      },
+      {
+        id: "inlineChatAutoMode",
+        name: "Inline chat auto mode",
+        description:
+          "In a conversation in blocks, a hint appears when you press Enter at the end of your turn (the block starting with your chat role): Space asks the AI to respond, Tab lets you complete your prompt, Enter leaves the conversation. After each AI response, your next turn is created and focused automatically (can also be toggled from the Live AI context menu):",
+        action: {
+          type: "switch",
+          onChange: () => {
+            setInlineChatAutoMode(!inlineChatAutoMode);
+          },
+        },
+      },
+      {
         id: "streamResponse",
         name: "Stream response",
         description:
@@ -1682,6 +1717,13 @@ export default {
         "Me: ,AI assistant (<model>): ",
       );
     const chatRolesStr = extensionAPI.settings.get("chatRoles");
+    if (extensionAPI.settings.get("inlineChatDisplay") === null)
+      await extensionAPI.settings.set("inlineChatDisplay", "main window");
+    inlineChatDisplay = extensionAPI.settings.get("inlineChatDisplay");
+    if (extensionAPI.settings.get("inlineChatAutoMode") === null)
+      await extensionAPI.settings.set("inlineChatAutoMode", true);
+    inlineChatAutoMode = extensionAPI.settings.get("inlineChatAutoMode");
+    setInlineChatAutoListener(inlineChatAutoMode);
     if (extensionAPI.settings.get("defaultStyle") === null)
       await extensionAPI.settings.set("defaultStyle", "Normal");
     defaultStyle = extensionAPI.settings.get("defaultStyle");
@@ -1886,6 +1928,7 @@ export default {
 
     window.removeEventListener("resize", onWindowResize);
     clearTimeout(visibilityResizeTimeout);
+    setInlineChatAutoListener(false);
 
     unmountComponent(position);
     removeContainer(position);

@@ -527,8 +527,17 @@ export const StandaloneContextMenu = () => {
       };
     });
 
+    // In a conversation, "Continue conversation in blocks" comes first, which
+    // makes it the item selected by default when the menu opens
+    if (isInConversation) {
+      const continueIndex = baseItems.findIndex((item) => item.id === 10);
+      if (continueIndex > 0)
+        baseItems.unshift(...baseItems.splice(continueIndex, 1));
+    }
+
     return baseItems.concat(modelItems);
   }, [
+    isInConversation,
     commands,
     userCommands,
     liveOutlines,

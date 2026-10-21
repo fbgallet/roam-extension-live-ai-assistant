@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Icon, Tooltip, MenuDivider } from "@blueprintjs/core";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faComments } from "@fortawesome/free-solid-svg-icons";
 import { displayModelConfigDialog } from "../../../utils/domElts";
 import { MCPDiagnostics } from "../../../ai/agents/mcp-agent/mcpDiagnostics";
 import AskGraphModeIndicator from "../../AskGraphModeIndicator";
@@ -10,6 +12,7 @@ import {
 } from "../../../ai/agents/search-agent/ask-your-graph";
 import ThinkingControls from "./ThinkingControls";
 import ActiveModelSelector from "./ActiveModelSelector";
+import { inlineChatAutoMode, setInlineChatAutoMode } from "../../../index";
 
 const ContextMenuHeader = ({
   activeModel,
@@ -31,6 +34,7 @@ const ContextMenuHeader = ({
     getCurrentAskGraphMode()
   );
   const [isAskGraphDialogOpen, setIsAskGraphDialogOpen] = useState(false);
+  const [isAutoChat, setIsAutoChat] = useState(() => !!inlineChatAutoMode);
 
   // Update mode when component mounts or when external changes occur
   useEffect(() => {
@@ -130,6 +134,47 @@ const ContextMenuHeader = ({
                 inputRef.current?.focus();
               }}
             />
+          </Tooltip>
+
+          <Tooltip
+            content={
+              <p>
+                Inline chat auto mode: <b>{isAutoChat ? "ON" : "OFF"}</b>
+                <br />
+                Hint after <code>Enter</code> at the end of your turn in a
+                conversation in blocks, next turn created after each response.
+                <br />
+                Click to turn {isAutoChat ? "off" : "on"}
+              </p>
+            }
+            disabled={window.roamAlphaAPI.platform.isMobile}
+            hoverOpenDelay={600}
+            openOnTargetFocus={false}
+            style={{ zIndex: "9999" }}
+          >
+            {/* same icon as the inline chat button, not the Chat panel's one */}
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                setInlineChatAutoMode(!isAutoChat);
+                setIsAutoChat(!isAutoChat);
+                inputRef.current?.focus();
+              }}
+              // laid out like Blueprint's <Icon>: inline-block span, block svg
+              style={{
+                display: "inline-block",
+                lineHeight: 0,
+                transform: "translateY(3px)",
+                cursor: "pointer",
+                color: isAutoChat ? "#137cbd" : undefined,
+                opacity: isAutoChat ? 1 : 0.45,
+              }}
+            >
+              <FontAwesomeIcon
+                icon={faComments}
+                style={{ display: "block", height: 12, width: "auto" }}
+              />
+            </span>
           </Tooltip>
 
           {/* Ask Graph Mode Indicator */}

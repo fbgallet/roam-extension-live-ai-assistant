@@ -22,7 +22,11 @@ import {
   createChildBlock,
   focusOnBlockInMainWindow,
   getBlockContentByUid,
+  focusOnBlockInSidebar,
+  foldBlockInMainWindow,
+  getChildrenUids,
   getParentBlock,
+  showConversationInSidebar,
   updateBlock,
 } from "../utils/roamAPI.js";
 import {
@@ -30,6 +34,7 @@ import {
   chatRoles,
   extensionStorage,
   getInstantAssistantRole,
+  inlineChatDisplay,
 } from "../index.js";
 import {
   displaySpinner,
@@ -242,16 +247,20 @@ const InstantButtons = ({
     } else if (isConversationToContinue) {
       prompt.push({ role: "user", content: userPrompt });
 
-      // Check if Cmd/Ctrl key is pressed to open conversation in FullResultsPopup
-      const isOpenInPopup = e.metaKey || e.ctrlKey;
+      // Cmd/Ctrl key or the "chat panel" setting: open conversation in FullResultsPopup
+      const isOpenInPopup =
+        e.metaKey || e.ctrlKey || inlineChatDisplay === "chat panel";
       if (isOpenInPopup) {
         await handleContinueConversationInPopup(prompt, userPrompt, model);
         return;
       }
 
+      const conversationUid = getParentBlock(targetUid);
+      if (inlineChatDisplay === "right sidebar")
+        await showConversationInSidebar(conversationUid);
       insertCompletion({
         targetUid: await createChildBlock(
-          getParentBlock(targetUid),
+          conversationUid,
           getInstantAssistantRole(model)
         ),
         systemPrompt: llmConversationSystemPrompt,
@@ -265,8 +274,9 @@ const InstantButtons = ({
         target: "new",
       });
     } else {
-      // Check if Cmd/Ctrl key is pressed to open conversation in FullResultsPopup
-      const isOpenInPopup = e.metaKey || e.ctrlKey;
+      // Cmd/Ctrl key or the "chat panel" setting: open conversation in FullResultsPopup
+      const isOpenInPopup =
+        e.metaKey || e.ctrlKey || inlineChatDisplay === "chat panel";
       if (isOpenInPopup) {
         await handleContinueConversationInPopup(prompt, userPrompt, model);
         return;
@@ -285,8 +295,11 @@ const InstantButtons = ({
     const parentUid = getParentBlock(targetUid);
     let userTurnContent = chatRoles.user || "";
 
-    // Check if Cmd/Ctrl key is pressed to open conversation in FullResultsPopup
-    const isOpenInPopup = props.e.metaKey || props.e.ctrlKey;
+    // Cmd/Ctrl key or the "chat panel" setting: open conversation in FullResultsPopup
+    const isOpenInPopup =
+      props.e.metaKey ||
+      props.e.ctrlKey ||
+      inlineChatDisplay === "chat panel";
     if (isOpenInPopup) {
       console.log("roamContext :>> ", roamContext);
       console.log("props.model :>> ", props.model);
@@ -296,7 +309,19 @@ const InstantButtons = ({
 
     prompt.push({ role: "assistant", content: suggestionsPrompt });
     const isSuggestionToInsert = props.e.altKey;
-    const nextBlock = await createChildBlock(parentUid, userTurnContent);
+    // in auto mode, the next user turn already exists after the response
+    const lastTurnUid = getChildrenUids(parentUid).at(-1);
+    const nextBlock =
+      lastTurnUid &&
+      userTurnContent.trim() &&
+      getBlockContentByUid(lastTurnUid)?.trim() === userTurnContent.trim()
+        ? lastTurnUid
+        : await createChildBlock(parentUid, userTurnContent);
+    const isInSidebar =
+      inlineChatDisplay === "right sidebar" &&
+      (await showConversationInSidebar(parentUid, nextBlock, false));
+    // the sidebar needs a bit more time to render the new block
+    const renderDelay = isInSidebar ? 500 : 100;
     const conversationParams = { uid: parentUid };
     // console.log("selectedUids :>> ", selectedUids);
     if (selectedUids) conversationParams.selectedUids = selectedUids;
@@ -323,7 +348,7 @@ const InstantButtons = ({
         },
       });
       if (isSuggestionToInsert) spinnerId = displaySpinner(nextBlock);
-    }, 100);
+    }, renderDelay);
     if (isSuggestionToInsert) {
       let aiSuggestions = await aiCompletion({
         targetUid: nextBlock,
@@ -337,16 +362,20 @@ const InstantButtons = ({
       if (isSuggestionToInsert) removeSpinner(spinnerId);
       await updateBlock({ blockUid: nextBlock, newContent: userTurnContent });
     }
-    setTimeout(() => {
-      if (!isSuggestionToInsert) focusOnBlockInMainWindow(nextBlock);
-      else {
+    setTimeout(async () => {
+      // fold the conversation in the main window just before the focus
+      if (isInSidebar) await foldBlockInMainWindow(parentUid);
+      if (!isSuggestionToInsert) {
+        if (!isInSidebar || !focusOnBlockInSidebar(nextBlock, parentUid))
+          focusOnBlockInMainWindow(nextBlock);
+      } else {
         const nextBlockElt = document.querySelector(`[id*="${nextBlock}"]`);
         if (nextBlock) {
           const optionElt = nextBlockElt.querySelector(".rm-option");
           if (optionElt) simulateClick(optionElt);
         }
       }
-    }, 250);
+    }, renderDelay + 150);
   };
 
   const handleContinueConversationInPopup = async (

@@ -5,7 +5,7 @@ import {
 import { copyTreeBranches } from "../ai/responseInsertion";
 import { AppToaster } from "../components/Toaster";
 import { sliceByWordLimit } from "./dataProcessing";
-import { highlightHtmlElt } from "./domElts";
+import { highlightHtmlElt, simulateClick } from "./domElts";
 import {
   contextRegex,
   dateStringRegex,
@@ -450,6 +450,145 @@ export function focusOnBlockInMainWindow(blockUid) {
       "window-id": "main-window",
     },
   });
+}
+
+export function getChildrenUids(blockUid) {
+  const result = window.roamAlphaAPI.pull(
+    "[{:block/children [:block/uid :block/order]}]",
+    [":block/uid", blockUid]
+  );
+  return (result?.[":block/children"] || [])
+    .sort((a, b) => a[":block/order"] - b[":block/order"])
+    .map((child) => child[":block/uid"]);
+}
+
+export const getSidebarWindowOfBlock = (blockUid) =>
+  window.roamAlphaAPI.ui.rightSidebar
+    .getWindows()
+    .find((w) => w.type === "block" && w["block-uid"] === blockUid);
+
+export function focusOnBlockInSidebar(blockUid, parentUid) {
+  const sidebarWindow = getSidebarWindowOfBlock(parentUid || blockUid);
+  if (!sidebarWindow?.["window-id"]) return false;
+  window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+    location: {
+      "block-uid": blockUid,
+      "window-id": sidebarWindow["window-id"],
+    },
+  });
+  return true;
+}
+
+const waitForSidebarBlock = async (blockUid, timeout = 3000) => {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (document.querySelector(`#roam-right-sidebar-content [id$="${blockUid}"]`))
+      return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+};
+
+// Fold the block in the main window by clicking on its caret (not through
+// the API, which folds it in the sidebar as well). The .block-expand wrapper
+// of the caret is not inside .rm-block-main, and the caret is only displayed
+// on hover: the caret is searched in the whole block container (excluding
+// the carets of its children). Several ways of clicking are tried one after
+// the other, until the caret is closed; the state is logged after each one.
+export const foldBlockInMainWindow = async (blockUid) => {
+  const findCaret = () => {
+    const blockElts = [...document.querySelectorAll(`[id$="${blockUid}"]`)]
+      .filter((elt) => !elt.closest("#roam-right-sidebar-content"))
+      .filter((elt) => elt.closest(".roam-block-container"));
+    for (const blockElt of blockElts) {
+      const container = blockElt.closest(".roam-block-container");
+      const caret = [
+        ...container.querySelectorAll(".block-expand .rm-caret"),
+      ].find((elt) => elt.closest(".roam-block-container") === container);
+      if (caret) return { blockElt, caret };
+    }
+    return null;
+  };
+  const getState = () => {
+    const found = findCaret();
+    return {
+      caretOpen: found?.caret.classList.contains("rm-caret-open"),
+      openInDB: window.roamAlphaAPI.pull("[:block/open]", [
+        ":block/uid",
+        blockUid,
+      ])?.[":block/open"],
+    };
+  };
+  const fire = (elt, types, EventClass = MouseEvent) =>
+    types.forEach((type) =>
+      elt.dispatchEvent(
+        new EventClass(type, {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0,
+        })
+      )
+    );
+  const hover = ({ blockElt }) =>
+    fire(blockElt, ["mouseover", "mouseenter", "mousemove"]);
+
+  const attempts = {
+    "simulateClick on caret": ({ caret }) => simulateClick(caret),
+    "simulateClick on .block-expand": ({ caret }) =>
+      simulateClick(caret.closest(".block-expand")),
+    "pointer events on caret": ({ caret }) => {
+      fire(
+        caret,
+        ["pointerdown"],
+        window.PointerEvent || MouseEvent
+      );
+      fire(caret, ["mousedown"]);
+      fire(caret, ["pointerup"], window.PointerEvent || MouseEvent);
+      fire(caret, ["mouseup", "click"]);
+    },
+  };
+
+  console.log("[Live AI] folding the conversation block", blockUid, getState());
+  for (const [name, attempt] of Object.entries(attempts)) {
+    const found = findCaret();
+    if (!found) {
+      console.warn("[Live AI] caret of the conversation block not found");
+      return;
+    }
+    if (!found.caret.classList.contains("rm-caret-open")) return; // folded
+    hover(found);
+    attempt(found);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    console.log(`[Live AI] fold attempt "${name}":`, getState());
+  }
+};
+
+// Show an inline conversation (children of conversationUid) in the right
+// sidebar and fold it in the main window to avoid displaying it twice (unless
+// fold is false: see foldBlockInMainWindow).
+// Returns false if the conversation can't be moved (e.g. it sits at the top
+// level of a page), so the caller keeps it in the main window.
+export async function showConversationInSidebar(
+  conversationUid,
+  waitForUid,
+  fold = true
+) {
+  if (!conversationUid || getPageNameByPageUid(conversationUid)) return false;
+  const rightSidebar = window.roamAlphaAPI.ui.rightSidebar;
+  rightSidebar.open();
+  if (getSidebarWindowOfBlock(conversationUid)) return true;
+  // a closed block shows no children in the sidebar either
+  if (isBlockClosedWithChildren(conversationUid))
+    await updateBlock({ blockUid: conversationUid, format: { open: true } });
+  await rightSidebar.addWindow({
+    window: { type: "block", "block-uid": conversationUid },
+  });
+  await waitForSidebarBlock(waitForUid || conversationUid);
+  // callers about to focus a block of the conversation (which may unfold it)
+  // fold it themselves, just before
+  if (fold) await foldBlockInMainWindow(conversationUid);
+  return true;
 }
 
 export async function updateBlock({

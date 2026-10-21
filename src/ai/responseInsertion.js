@@ -78,6 +78,10 @@ import { hasTrueBooleanKey } from "../utils/dataProcessing";
 import { openChatPopup } from "../components/full-results-popup";
 import { imageGeneration, preprocessAttachedFiles } from "./multimodalAI";
 import { getContextFromQueries } from "./queryContextExtractor";
+import {
+  openFirstResponseInSidebar,
+  prepareNextUserTurn,
+} from "../utils/inlineChatAuto.js";
 
 export const lastCompletion = {
   prompt: null,
@@ -609,6 +613,17 @@ export const insertCompletion = async ({
   console.log("SystemPrompt :>> ", systemPrompt);
   console.log("Context :>> ", content);
 
+  // first response of an inline chat: shown in the sidebar from the start
+  if (
+    !isInConversation &&
+    !isRedone &&
+    target === "new" &&
+    isButtonToInsert &&
+    withAssistantRole &&
+    typeOfCompletion === "gptCompletion"
+  )
+    await openFirstResponseInSidebar(getParentBlock(targetUid), targetUid);
+
   const intervalId = await displaySpinner(targetUid);
 
   // console.log("command.slice(0, 16) :>> ", command.slice(0, 16));
@@ -658,7 +673,7 @@ export const insertCompletion = async ({
       await updateBlock({ blockUid: targetUid, newContent: "" });
     }
     // console.log("command :>> ", command);
-    insertStructuredAIResponse({
+    await insertStructuredAIResponse({
       targetUid,
       content: aiResponse,
       target,
@@ -669,6 +684,39 @@ export const insertCompletion = async ({
   setTimeout(() => {
     removeSpinner(intervalId);
   }, 100);
+  // auto mode of inline chat: the next user turn is ready to be written
+  if (
+    target === "new" &&
+    (isInConversation ||
+      (isButtonToInsert &&
+        withAssistantRole &&
+        typeOfCompletion === "gptCompletion"))
+  )
+    prepareNextUserTurn(
+      getParentBlock(targetUid),
+      targetUid,
+      // first response: the conversation starts now
+      isInConversation
+        ? undefined
+        : {
+            history: { command, selectedUids, context: roamContext, style },
+            // to generate this first response again
+            generation: {
+              prompt,
+              systemPrompt,
+              context,
+              typeOfCompletion,
+              instantModel,
+              command,
+              style,
+              withSuggestions,
+              selectedUids,
+              roamContext,
+              includePdfInContext,
+              thinkingEnabled,
+            },
+          }
+    );
 };
 
 export async function insertStructuredAIResponse({

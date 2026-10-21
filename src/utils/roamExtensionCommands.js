@@ -58,10 +58,17 @@ import {
 } from "../ai/dataExtraction";
 import { flexibleUidRegex, sbParamRegex } from "./regex";
 import { openChatPopup } from "../components/full-results-popup";
+import { continueConversationFromFocus } from "./inlineChatAuto";
 import { modelAccordingToProvider } from "../ai/aiAPIsHub";
 import { cycleActiveModel, isActiveModelDefault } from "./activeModel";
 
 export const loadRoamExtensionCommands = (extensionAPI) => {
+  extensionAPI.ui.commandPalette.addCommand({
+    label: "Live AI: Continue conversation in blocks",
+    callback: () => {
+      continueConversationFromFocus();
+    },
+  });
   extensionAPI.ui.commandPalette.addCommand({
     label: "Live AI: Start/Pause recording vocal note",
     callback: () => {

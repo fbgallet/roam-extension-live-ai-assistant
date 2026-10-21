@@ -4,6 +4,11 @@
 
 - **Quick model switch** in the Context menu: click on the model name (header) to pick the active model for the session (the default model stays unchanged), type a model name in the input and press `Tab` to switch to the highlighted model, or `Alt + ↓/↑` to cycle through favorite models (also in the Chat panel). The active model is also used by `Ask AI`.
 - New command: `Live AI: Switch to next favorite model`.
+- **Inline chat auto mode** (on by default; toggle in settings or with the conversation icon in the Context menu header): chat in blocks with the keyboard only.
+  - `Enter` at the end of your turn (block starting with your chat role, e.g. `Me:`, or one of its children) shows a hint: `Space` → the AI responds, `Tab` → complete your prompt, `Enter` → leave the conversation, any other key → keep writing.
+  - After each AI response, your next turn is created and focused (removed if left empty). After the first response only: `Shift+Enter` regenerates it, `Shift+Esc` deletes it. Buttons of previous turns are removed.
+- New command `Live AI: Continue conversation in blocks` (command palette): answers the turn where the cursor is, or creates your next turn from an AI response.
+- New setting **Inline chat display**: continue conversations in blocks in the **right sidebar** (block folded in the main window) or in the **chat panel**, instead of the main window. `Cmd/Ctrl + click` on the chat button still opens the chat panel.
 - `LIVEAIGEN` SmartBlock can now call **custom prompts** and **built-in prompts**: `{prompt:title}` or `{prompt:((uid))}` for a custom prompt (#liveai/prompt), `{built-in:summarize}` or `{built-in:translate:Spanish}` for a built-in prompt, combinable with `+` and your own instructions (e.g. `{built-in:summarize+((uid))}`). The content to process is the context parameter (or the current block), and the inline context of a custom prompt is taken into account. `<built-in:...>` can also be used in any text or block used as prompt.
 
 **Updates**
