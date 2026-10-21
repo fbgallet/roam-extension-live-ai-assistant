@@ -607,6 +607,9 @@ const getInfosFromSmartBlockParams = async ({
   isRoleToInsert = true,
 }) => {
   if (!model || model === "default") model = defaultModel;
+  const normalizedIncludeRefs = String(includeRefs ?? "").trim().toLowerCase();
+  const withUidParam =
+    normalizedIncludeRefs === "true" || Number(normalizedIncludeRefs) > 0;
   const assistantRole = isRoleToInsert
     ? model
       ? getInstantAssistantRole(model)
@@ -792,14 +795,15 @@ const getInfosFromSmartBlockParams = async ({
     if (context) {
       stringifiedContext =
         context === "{current}"
-          ? currentBlockContent
+          ? (withUidParam ? `((${currentUid})) ` : "") + currentBlockContent
           : await getContextFromSbCommand(
               context,
               currentUid,
               selectionUids,
               contextDepth,
               includeRefs,
-              model
+              model,
+              currentBlockContent
             );
     }
     // the context parameter is the content to process by the built-in or custom prompt
@@ -817,7 +821,8 @@ const getInfosFromSmartBlockParams = async ({
         model,
         maxDepth: contextDepth,
         withHierarchy: true,
-        withUid: includeRefs === "true" || Number(includeRefs) > 0,
+        withUid: withUidParam,
+        forceUids: withUidParam,
       });
       if (promptContext?.trim())
         stringifiedContext =

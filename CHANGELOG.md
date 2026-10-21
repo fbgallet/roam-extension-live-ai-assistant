@@ -20,6 +20,7 @@
 **Fixed**
 
 - `<built-in:translate:language>` in custom prompts ignored the language, and only the first `<built-in:...>` of a custom prompt was resolved.
+- `LIVEAIGEN` & `LIVEAITEMPLATE` SmartBlocks: the 6th parameter (`true`) now inserts block uids in `{children}`, `{current}` and `[[page]]` contexts, and `{current+children}` now includes the current block.
 
 ### v.36 (September 24th, 2026)
 

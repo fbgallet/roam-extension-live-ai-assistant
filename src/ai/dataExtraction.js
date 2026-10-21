@@ -558,7 +558,10 @@ export const getAndNormalizeContext = async ({
   uidToExclude,
   withHierarchy = false,
   withUid = true,
+  forceUids = false,
 }) => {
+  // forceUids (explicit user choice) takes precedence over the global setting
+  const uidsOn = uidsInPrompt || forceUids;
   let context = "";
   if (blocksSelectionUids && blocksSelectionUids.length > 0)
     context = getResolvedContentFromBlocks(
@@ -588,8 +591,9 @@ export const getAndNormalizeContext = async ({
             getFlattenedContentFromTree({
               parentUid: uid,
               maxCapturing: maxDepth || 99,
-              maxUid: withUid && uidsInPrompt && maxUid,
+              maxUid: withUid && uidsOn && maxUid,
               withDash: withHierarchy,
+              forceUids,
             }))
       );
     }
@@ -597,9 +601,10 @@ export const getAndNormalizeContext = async ({
       let childrenFlattenedContent = getFlattenedContentFromTree({
         parentUid: focusedBlock,
         maxCapturing: 99,
-        maxUid: 0,
+        maxUid: forceUids ? 99 : 0,
         withDash: true,
         isParentToIgnore: true,
+        forceUids,
       });
       if (childrenFlattenedContent)
         context += "\n\n" + childrenFlattenedContent;
@@ -613,8 +618,9 @@ export const getAndNormalizeContext = async ({
             getFlattenedContentFromTree({
               parentUid: sibling.uid,
               maxCapturing: maxDepth || 99,
-              maxUid: withUid && uidsInPrompt ? 99 : 0,
+              maxUid: withUid && uidsOn ? 99 : 0,
               withDash: withHierarchy,
+              forceUids,
             });
         });
       }
@@ -673,8 +679,9 @@ export const getAndNormalizeContext = async ({
             getFlattenedContentFromTree({
               parentUid: uid,
               maxCapturing: maxDepth || 99,
-              maxUid: withUid && uidsInPrompt && 99,
+              maxUid: withUid && uidsOn && 99,
               withDash: withHierarchy,
+              forceUids,
             }))
       );
     }
@@ -697,7 +704,12 @@ export const getAndNormalizeContext = async ({
         (uid) =>
           (context +=
             "\n\n" +
-            getFlattenedContentFromLinkedReferences(uid, maxDepth, maxUid))
+            getFlattenedContentFromLinkedReferences(
+              uid,
+              maxDepth,
+              maxUid,
+              forceUids
+            ))
       );
     }
     if (roamContext.logPages) {
@@ -710,7 +722,8 @@ export const getAndNormalizeContext = async ({
         startDate,
         model,
         maxDepth,
-        maxUid
+        maxUid,
+        forceUids
       );
     }
     if (roamContext.sidebar) {
@@ -758,7 +771,8 @@ export const getFlattenedContentFromTree = ({
 export const getFlattenedContentFromLinkedReferences = (
   pageUid,
   maxDepth,
-  maxUid
+  maxUid,
+  forceUids = false
 ) => {
   const refTrees = getLinkedReferencesTrees(pageUid);
   const pageName = getPageNameByPageUid(pageUid);
@@ -770,7 +784,11 @@ export const getFlattenedContentFromLinkedReferences = (
     let { linearArray } = convertTreeToLinearArray(
       tree,
       maxDepth || maxCapturingDepth.refs,
-      maxUid || maxUidDepth.refs
+      maxUid || maxUidDepth.refs,
+      false,
+      "",
+      undefined,
+      forceUids
     );
     linkedRefsArray.push(linearArray.join("\n"));
   });
@@ -816,7 +834,8 @@ export const getFlattenedContentFromLog = (
   startDate,
   model,
   maxDepth,
-  maxUid
+  maxUid,
+  forceUids = false
 ) => {
   let processedDays = 0;
   let flattenedBlocks = "";
@@ -835,6 +854,7 @@ export const getFlattenedContentFromLog = (
       maxUid: maxUid || maxUidDepth.dnp,
       withDash: true,
       isParentToIgnore: true,
+      forceUids,
     });
     if (dayContent.length > 0) {
       let dayTitle = window.roamAlphaAPI.util.dateToPageTitle(date);
@@ -1065,15 +1085,31 @@ export const getContextFromSbCommand = async (
   selectedUids,
   contextDepth,
   includeRefs,
-  model
+  model,
+  currentContent
 ) => {
   sbParamRegex.lastIndex = 0;
   pageRegex.lastIndex = 0;
-  const maxUid = includeRefs === "true" ? contextDepth || 0 : 0;
+  // uids are explicitly requested: they are included whatever the global setting,
+  // at all levels (contextDepth only limits the depth of the context itself)
+  includeRefs = String(includeRefs ?? "").trim().toLowerCase();
+  const withUid = includeRefs === "true" || Number(includeRefs) > 0;
+  const maxUid = withUid ? 99 : 0;
   if (context || selectedUids) {
     if (context && sbParamRegex.test(context.trim())) {
       let contextObj;
       context = context.trim().slice(1, -1);
+      // "current" is not a roamContext element: the content of the current block
+      // (SmartBlock host) is prepended to the other elements, eg. {current+children}
+      let currentBlockContext = "";
+      const currentTokenRegex = /(^|\+)\s*current\s*(?=\+|$)/;
+      if (currentTokenRegex.test(context)) {
+        context = context.replace(currentTokenRegex, "").replace(/^\+/, "");
+        currentBlockContext =
+          (withUid ? `((${currentUid})) ` : "") +
+          (currentContent ?? getBlockContentByUid(currentUid) ?? "");
+        if (!context.trim()) return currentBlockContext;
+      }
       contextObj = getRoamContextFromPrompt(
         `((context: ${context}))`,
         false,
@@ -1106,8 +1142,11 @@ export const getContextFromSbCommand = async (
         maxDepth: contextDepth,
         maxUid,
         withHierarchy: true,
-        withUid: maxUid > 0,
+        withUid,
+        forceUids: withUid,
       });
+      if (currentBlockContext)
+        context = currentBlockContext + (context ? "\n\n" + context : "");
     } else if (context && pageRegex.test(context.trim())) {
       pageRegex.lastIndex = 0;
       const matchingName = context.trim().match(pageRegex);
@@ -1115,14 +1154,17 @@ export const getContextFromSbCommand = async (
       const pageUid = getPageUidByPageName(pageName);
       context = getFlattenedContentFromTree({
         parentUid: pageUid,
+        maxUid,
         withDash: true,
+        forceUids: withUid,
       });
       context +=
         "\n\n" +
         getFlattenedContentFromLinkedReferences(
           pageUid,
           contextDepth,
-          includeRefs === "true" ? contextDepth || undefined : undefined
+          withUid ? maxUid : undefined,
+          withUid
         );
     } else {
       const contextUid = extractNormalizedUidFromRef(context.trim());
@@ -1132,6 +1174,7 @@ export const getContextFromSbCommand = async (
           maxCapturing: 99,
           maxUid,
           withDash: true, // always insert a dash at the beginning of a line to mimick block structure
+          forceUids: withUid,
         });
       } else context = resolveReferences(context);
       if (selectedUids && selectedUids.length > 0)
@@ -1139,7 +1182,7 @@ export const getContextFromSbCommand = async (
           (context ? "\n\n" : "") +
           getResolvedContentFromBlocks(
             selectedUids,
-            includeRefs === "true" || Number(includeRefs) > 0 ? true : false
+            withUid
           );
     }
   }
