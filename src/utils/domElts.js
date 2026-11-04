@@ -160,6 +160,8 @@ export function createContainer(position) {
     "speech-to-roam",
     `speech-to-roam-container-${position}`,
   );
+  // Body flag instead of a :has() rule on .roam-main (costly style recalc)
+  position === "top" && document.body.classList.add("liveai-has-top-container");
   const todayTomorrowExtension = document.querySelector("#todayTomorrow");
   if (todayTomorrowExtension && position === "top")
     todayTomorrowExtension.insertAdjacentElement("afterend", newElt);
@@ -186,6 +188,8 @@ export function removeContainer(position) {
       `.speech-to-roam-container-${position}, .speech-to-roam-container-undefined`,
     )
     .forEach((container) => container.remove());
+  position === "top" &&
+    document.body.classList.remove("liveai-has-top-container");
 }
 
 export const displaySpinner = async (targetUid) => {

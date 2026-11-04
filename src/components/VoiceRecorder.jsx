@@ -860,6 +860,16 @@ function VoiceRecorder({
     </p>
   );
 
+  // FontAwesome icons are wrapped in .bp3-icon so that they get the same color
+  // as Blueprint icons (Roam, themes and other extensions target .bp3-icon)
+  const iconWrapper = (icon) => <span class="bp3-icon">{icon}</span>;
+  // In the left sidebar, commands are not Blueprint buttons (like the record
+  // button): themes color .bp3-button icons, not sidebar items
+  const commandButtonClass =
+    position === "left"
+      ? "liveai-sidebar-command"
+      : "bp3-button bp3-minimal bp3-small";
+
   const mainContent = () => {
     return (
       <>
@@ -907,7 +917,7 @@ function VoiceRecorder({
             tabindex="0"
             // {...props}
           >
-            {mainContent()}
+            {iconWrapper(mainContent())}
           </span>
         </span>
       </span>
@@ -965,12 +975,14 @@ function VoiceRecorder({
   const timerContent = () => {
     return (
       <>
-        <Tooltip
-          content="Rewind and delete the current recording (Backspace or Escape)"
-          hoverOpenDelay="500"
-        >
-          <FontAwesomeIcon icon={faBackwardStep} />
-        </Tooltip>
+        {iconWrapper(
+          <Tooltip
+            content="Rewind and delete the current recording (Backspace or Escape)"
+            hoverOpenDelay="500"
+          >
+            <FontAwesomeIcon icon={faBackwardStep} />
+          </Tooltip>
+        )}
         <Timer time={time} />
       </>
     );
@@ -1053,11 +1065,11 @@ function VoiceRecorder({
               }
             }}
             disabled={!areCommandsToDisplay}
-            class={`bp3-button bp3-minimal bp3-small speech-command ${commandClass}`}
+            class={`${commandButtonClass} speech-command ${commandClass}`}
             tabindex="0"
             {...props}
           >
-            {insertIconCallback()}
+            {iconWrapper(insertIconCallback())}
           </span>
         </span>
       </span>
@@ -1091,7 +1103,7 @@ function VoiceRecorder({
               <span
                 onMouseDown={captureLiveTarget}
                 onClick={handleLiveTranscription}
-                class={`bp3-button bp3-minimal bp3-small speech-command speech-live-transcribe${
+                class={`${commandButtonClass} speech-command speech-live-transcribe${
                   liveState.active
                     ? liveState.paused
                       ? " live-paused"
@@ -1100,41 +1112,43 @@ function VoiceRecorder({
                 }`}
                 tabindex="0"
               >
-                <Tooltip
-                  openOnTargetFocus={false}
-                  content={
-                    liveState.connecting ? (
-                      <p>Opening the live session, wait before speaking…</p>
-                    ) : liveState.active ? (
-                      <p>
-                        Stop live transcription (L)
-                        <br />
-                        {liveState.paused
-                          ? "Paused on silence: speak to resume (not billed meanwhile)."
-                          : "Listening… billed per minute of streamed audio."}
-                      </p>
+                {iconWrapper(
+                  <Tooltip
+                    openOnTargetFocus={false}
+                    content={
+                      liveState.connecting ? (
+                        <p>Opening the live session, wait before speaking…</p>
+                      ) : liveState.active ? (
+                        <p>
+                          Stop live transcription (L)
+                          <br />
+                          {liveState.paused
+                            ? "Paused on silence: speak to resume (not billed meanwhile)."
+                            : "Listening… billed per minute of streamed audio."}
+                        </p>
+                      ) : (
+                        <p>
+                          Start live transcription (L)
+                          <br /> <br />
+                          Your words are inserted in the focused block as you
+                          speak.
+                          <br />
+                          ⚠️ Billed per minute of streamed audio (~$1/hour)
+                        </p>
+                      )
+                    }
+                    hoverOpenDelay="500"
+                  >
+                    {liveState.connecting ? (
+                      <FontAwesomeIcon icon={faSpinner} spin />
                     ) : (
-                      <p>
-                        Start live transcription (L)
-                        <br /> <br />
-                        Your words are inserted in the focused block as you
-                        speak.
-                        <br />
-                        ⚠️ Billed per minute of streamed audio (~$1/hour)
-                      </p>
-                    )
-                  }
-                  hoverOpenDelay="500"
-                >
-                  {liveState.connecting ? (
-                    <FontAwesomeIcon icon={faSpinner} spin />
-                  ) : (
-                    <FontAwesomeIcon
-                      icon={faTowerBroadcast}
-                      beatFade={liveState.active && !liveState.paused}
-                    />
-                  )}
-                </Tooltip>
+                      <FontAwesomeIcon
+                        icon={faTowerBroadcast}
+                        beatFade={liveState.active && !liveState.paused}
+                      />
+                    )}
+                  </Tooltip>
+                )}
               </span>
             </span>
           </span>

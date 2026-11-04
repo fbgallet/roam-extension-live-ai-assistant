@@ -2,7 +2,6 @@
 /* @import "./src/components/full-results-popup/style/queryRenderer.css"; */
 
 :root {
-  --icon-color-left: var(--co-left-sidebar__icon, #5c7080);
   --icon-color-top: var(--co-button__minimal-icon, #5c7080);
 }
 
@@ -186,7 +185,8 @@
   margin-bottom: 20px;
 }
 
-.speech-to-roam :is(.log-button, .bp3-icon, .bp3-button):focus {
+.speech-to-roam
+  :is(.log-button, .bp3-icon, .bp3-button, .liveai-sidebar-command):focus {
   border: none;
   outline: none;
 }
@@ -222,11 +222,6 @@
 .speech-record-button:focus,
 .speech-backward-button:focus {
   outline-width: 0px !important;
-}
-.speech-record-button .bp3-icon {
-  margin-left: 2px;
-  min-width: 24px;
-  padding: 0;
 }
 
 .speech-ui-row1,
@@ -288,7 +283,7 @@
 }
 .speech-to-roam-container-left
   > .speech-ui-row1
-  > .log-button:not(:has(.digits))
+  > .log-button:not(.left-timer-wrapper)
   > span:last-child {
   margin-left: -1px;
 }
@@ -297,18 +292,29 @@
   padding-bottom: 1px;
 }
 
-.speech-to-roam-container-left svg:not(.fa-record-vinyl) path {
-  fill: var(--icon-color-left);
+
+/* Left sidebar commands: not .bp3-button (so they inherit the sidebar color
+   like the record button), but same size and hover as a small minimal one */
+.liveai-sidebar-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-radius: 3px;
+  cursor: pointer;
 }
-.speech-to-roam-container-top svg:not(.fa-record-vinyl) path,
-.full-results-chat-mic-button svg path {
-  fill: var(--icon-color-top);
+.liveai-sidebar-command:hover {
+  background-color: rgba(167, 182, 194, 0.3);
+}
+.bp3-dark .liveai-sidebar-command:hover {
+  background-color: rgba(138, 155, 168, 0.15);
 }
 
 /* Live transcription: its icon has to show whether the session is streaming
-   (and being billed) or paused on silence, so its color must escape the flat
-   icon color applied above to every path of the toolbar — hence the container
-   class, needed to outweigh those rules. */
+   (and being billed) or paused on silence, so its paths get an explicit fill
+   that overrides the inherited icon color set above. */
 .speech-to-roam-container-left .speech-live-transcribe.live-listening svg path,
 .speech-to-roam-container-top .speech-live-transcribe.live-listening svg path {
   fill: #e00000;
@@ -694,10 +700,6 @@
   flex-direction: column;
   align-items: center;
 }
-.rm-block-children:not(:has(.rm-block))
-  > .liveai-instant-btn-outliner-container {
-  top: -25px;
-}
 .liveai-instant-btn-container:not(:has(.fa-copy)) {
   top: 1px;
   opacity: 0.4;
@@ -863,7 +865,8 @@
     border-radius: 0 0 20px 5px;
     backdrop-filter: blur(1.5px);
   }
-  .roam-main:has(.speech-to-roam.speech-to-roam-container-top)
+  .liveai-has-top-container
+    .roam-main
     .roam-article:not(:has(.rm-title-display)) {
     padding-top: 35px;
   }
@@ -2893,7 +2896,8 @@ html.has-blueprint-extension .full-results-chat-assistant-message.chat-help {
 }
 
 @keyframes whatsNewPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 2px 4px rgba(255, 165, 0, 0.15);
   }
   50% {
