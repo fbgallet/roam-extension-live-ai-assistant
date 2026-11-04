@@ -1,3 +1,14 @@
+### v.39 (November, 2026)
+
+**Fixed**
+
+- Performance: CSS rules relying on `:has()` on large parts of the page (blocks, main view) could slow down all of Roam; they have been replaced by lighter selectors.
+- Icon colors of the Live AI buttons (left sidebar and topbar) now follow the theme colors, for better compatibility with themes like Live Theme.
+- Inline chat auto mode:
+  - your next turn (`Me:`) was not focused when the conversation was on the Daily Notes log page.
+  - `Space` sometimes didn't trigger the AI response: conversations no longer in the history (limited to 30) are now recognized by the AI responses they contain, the hint waits longer for Roam to create the new block (large graphs), and the response waits for this block to be saved. Errors are now reported instead of failing silently.
+  - a turn just written could be removed as empty when leaving it before Roam had saved it.
+
 ### v.38 (October, 2026)
 
 **New features**

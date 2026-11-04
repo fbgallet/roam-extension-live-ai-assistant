@@ -18,24 +18,16 @@ Please report any issue [here](https://github.com/fbgallet/roam-extension-live-a
 
 ---
 
-### New in v.38 (October, 2026)
+### New in v.39 (November, 2026)
+
+- Performance fix: some CSS rules (`:has()`) could slow down all of Roam.
+- Icon colors follow the theme (better compatibility with themes like Live Theme).
+- Fixes for the **inline chat auto mode**: focus on the Daily Notes log page, `Space` that sometimes didn't trigger the AI response.
+
+### Major updates in v.38, 34 & 33 (July & August, 2026)
 
 - **Inline chat auto mode** (on by default; toggle in settings or with the conversation icon in the Context menu header): chat in blocks with the keyboard only.
-- 🆕 **Quick model switch** in the Context menu: click on the model name to choose the active model for the session, or press `Alt + ↓/↑` to cycle through your favorite models (also in the Chat panel). Also used by `Ask AI`, and available as a command: `Live AI: Switch to next favorite model`.
-- New models support: Gemini 4 Argon, Grok 4.7, , Claude Haiku 5.5
-
-### New in v.36 (September, 2026)
-
-- New models support: GPT 6 Luna, Sol & Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare
-
-### New in v.35 (August, 2026)
-
-- 🆕 **Color Highlighter tool** in the Chat agent: ask it to **highlight, underline, box or set a background color** on your blocks — or the other way round, to **extract content by color** ("extract and comment everything highlighted in blue"). It follows the conventions of the [Color Highlighter](https://github.com/fbgallet/roam-extension-color-highlighter) extension, to be installed from Roam Depot for the colors to render.
-- 🆕 **Context & target selector** in the Chat panel: choose which sources the agent **reads** (loaded context, main view, sidebar) and, independently, which ones it **acts on** — so it can edit the page you have open without you having to load it in the context first. Main view and sidebar are re-read at each request, so they follow you when you change page or zoom.
-- Enhanced Roam Grid tables use the Grid transaction API when available, while ordinary Roam tables retain the native block fallback. See [the integration contract](docs/roam-grid-integration.md).
-
-### Major updates in v.33 & 34 (July & August, 2026)
-
+- 🆕 **Quick model switch** or press `Alt + ↓/↑` to cycle through favorites.
 - 🆕 New **live transcription** (button next to the recorder): dictate and your words appear in the focused block — or in the Chat panel input — as you speak
 - 🆕 **Attached files as input**, beyond `.pdf`: `.md`, `.txt`, `.csv`, `.json`, code files… (**any model**), and `.docx`/`.pptx`/`.xlsx` only with **OpenAI models**.
 - 🆕 **Roam table auto-complete**: click a Roam table's row/column handle (or right-click on its "+" buttons) to fill empty or `[placeholder/instructions]` cells, generate whole new rows & columns with AI, or update whole row or column according to your instructions.

@@ -17,7 +17,6 @@ import { simulateClick } from "./domElts";
 import {
   createChildBlock,
   deleteBlock,
-  focusOnBlockInMainWindow,
   focusOnBlockInSidebar,
   foldBlockInMainWindow,
   getBlockContentByUid,
@@ -67,13 +66,26 @@ const getUidFromTextarea = (textarea) => textarea.id.slice(-9);
 const getFocusedWindowId = () =>
   window.roamAlphaAPI.ui.getFocusedBlock()?.["window-id"] || "main-window";
 
+// On the daily notes log, blocks are not in "main-window" but in "log-outline"
+// (their textarea id is "block-input-log-outline-<uid>")
+const getMainWindowIdOfBlock = (uid) =>
+  document.querySelector(`#rm-log-container [id="block-input-log-outline-${uid}"]`)
+    ? "log-outline"
+    : "main-window";
+
+const getConversationWindowId = (rootUid) =>
+  getSidebarWindowOfBlock(rootUid)?.["window-id"] ||
+  getMainWindowIdOfBlock(rootUid);
+
 const focusBlock = (uid, rootUid, windowId) => {
   if (windowId)
     window.roamAlphaAPI.ui.setBlockFocusAndSelection({
       location: { "block-uid": uid, "window-id": windowId },
     });
   else if (!getSidebarWindowOfBlock(rootUid) || !focusOnBlockInSidebar(uid, rootUid))
-    focusOnBlockInMainWindow(uid);
+    window.roamAlphaAPI.ui.setBlockFocusAndSelection({
+      location: { "block-uid": uid, "window-id": getMainWindowIdOfBlock(rootUid) },
+    });
 };
 
 // Focus with the cursor at the end of the block
@@ -82,8 +94,7 @@ const focusBlockAtEnd = (uid, rootUid) => {
   window.roamAlphaAPI.ui.setBlockFocusAndSelection({
     location: {
       "block-uid": uid,
-      "window-id":
-        getSidebarWindowOfBlock(rootUid)?.["window-id"] || "main-window",
+      "window-id": getConversationWindowId(rootUid),
     },
     selection: { start: length, end: length },
   });
@@ -185,13 +196,18 @@ const removeTurnIfLeftBare = (uid) => {
     if (!isBlockTextarea(e.target) || getUidFromTextarea(e.target) !== uid)
       return;
     stopWatching();
+    // the text typed may not be saved in the graph yet: the textarea is the
+    // reliable source when the block is left
+    const leftContent = e.target.value;
+    const isBare = (content) =>
+      (content || "").trim() === (chatRoles.user || "").trim();
     setTimeout(() => {
       const focusedUid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"];
       if (
         focusedUid !== uid &&
+        isBare(leftContent) &&
         isExistingBlock(uid) &&
-        (getBlockContentByUid(uid) || "").trim() ===
-          (chatRoles.user || "").trim()
+        isBare(getBlockContentByUid(uid))
       )
         deleteBlock(uid);
     }, 300);
@@ -416,7 +432,16 @@ const displayHint = (
     if (onAction && !PASS_THROUGH_ACTIONS.includes(action)) {
       e.preventDefault();
       e.stopPropagation();
-      onAction(action);
+      Promise.resolve()
+        .then(() => onAction(action))
+        .catch((error) => {
+          console.error("Live AI inline chat:", error);
+          AppToaster.show({
+            message: `Inline chat: the action failed (${error?.message || error})`,
+            intent: "danger",
+            timeout: 8000,
+          });
+        });
     }
   };
   document.addEventListener("keydown", onKeyDown, true);
@@ -429,8 +454,9 @@ const displayHint = (
 };
 
 // Roam creates the next block asynchronously: wait for it to take the focus
+// (it can take a while on large graphs or on the daily notes log)
 const waitForNewEmptyBlock = async (previousUid) => {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 66; i++) {
     await sleep(30);
     const textarea = document.activeElement;
     if (
@@ -442,6 +468,24 @@ const waitForNewEmptyBlock = async (previousUid) => {
   }
   return null;
 };
+
+// The new block can be focused before Roam has written it in the graph
+const waitForBlockInGraph = async (uid, timeout = 2000) => {
+  const start = Date.now();
+  while (!isExistingBlock(uid)) {
+    if (Date.now() - start > timeout)
+      throw new Error("the new block was not saved in the graph");
+    await sleep(50);
+  }
+};
+
+// The conversation history is limited, older conversations are recognized
+// by the AI responses among the children of their root
+const isConversation = (turnUid, rootUid) =>
+  isPromptInConversation(turnUid, false) ||
+  getChildrenUids(rootUid).some((uid) =>
+    isAssistantContent(graphDeps.getContent(uid))
+  );
 
 const onEnterKeyDown = async (e) => {
   const textarea = e.target;
@@ -474,7 +518,7 @@ const onEnterKeyDown = async (e) => {
     !turn ||
     (turn.turnUid === uid && !hasPromptText(textarea.value, chatRoles.user)) ||
     !isLastTurn(turn, deps) ||
-    !isPromptInConversation(turn.turnUid, false)
+    !isConversation(turn.turnUid, turn.rootUid)
   )
     return;
 
@@ -485,6 +529,7 @@ const onEnterKeyDown = async (e) => {
   const emptyUid = getUidFromTextarea(newTextarea);
 
   displayHint(newTextarea, REPLY_HINT, { onAction: async (action) => {
+    await waitForBlockInGraph(emptyUid);
     if (action === "reply") {
       await replyToTurn({ ...turn, emptyUid });
     } else {

@@ -56,7 +56,7 @@ Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffe
 
 export const LIVE_AI_HELP_RESPONSE = `### Live AI - Quick Overview
 
-**Live AI** v.38 (October 2026) brings powerful multimodal LLMs directly into Roam Research!
+**Live AI** v.39 (November 2026) brings powerful multimodal LLMs directly into Roam Research!
 
 #### **Main Features:**
 - ⚡️ **Ask AI**: instant AI request from your Roam blocks: focused or selected blocks are the prompt.
@@ -86,41 +86,31 @@ All OpenAI, Anthropic, Google, xAI (Grok) or DeepSeek models via their official 
 Become a [Github sponsor](https://github.com/sponsors/fbgallet), [buy me a coffee](https://buymeacoffee.com/fbgallet) or follow @fbgallet on [X](https://x.com/fbgallet), on [Bluesky](https://bsky.app/profile/fbgallet.bsky.social) or on [Mastodon](https://mastodon.social/@fbgallet)`;
 
 // Update this version each time you update WHATS_NEW_RESPONSE content
-export const WHATS_NEW_VERSION = "38";
+export const WHATS_NEW_VERSION = "39";
 
-export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.38 (October 2026) 🎉
+export const WHATS_NEW_RESPONSE = `### What's New in Live AI v.39 (November 2026) 🎉
 
-#### 🆕 **Quick model switch**
+#### 🛠️ **Fixes**
+- **Performance**: some CSS rules could slow down all of Roam
+- Icon colors follow the theme (better compatibility with themes like Live Theme)
+- Inline chat auto mode: your next turn is now focused on the Daily Notes log page too
+- Inline chat auto mode: \`Space\` sometimes didn't trigger the AI response (e.g. in older conversations): fixed, and errors are now reported
+
+#### In v.38: **Quick model switch**
 - In the Context menu, click on the model name to choose the **active model** for the session (default model unchanged), or type a model name in the input and press \`Tab\` to switch to the highlighted model
 - \`Alt + ↓/↑\`: cycle through your favorite models, in the Context menu and in the Chat panel. The active model is also used by Ask AI
 - New command: \`Live AI: Switch to next favorite model\` (assign it a hotkey!)
 
-#### 🆕 **Inline chat auto mode** (on by default)
+#### In v.38: **Inline chat auto mode** (on by default)
 - Chat in blocks with the keyboard only: \`Enter\` at the end of your turn (block starting with \`Me:\`) shows a hint: \`Space\` → the AI responds, \`Tab\` → complete your prompt, \`Enter\` → leave the conversation
 - Your next turn is created after each response. After the first one: \`Shift+Enter\` regenerates it, \`Shift+Esc\` deletes it
 - Toggle it in settings or with the conversation icon in the Context menu header. New command \`Live AI: Continue conversation in blocks\` (assign it a hotkey!). Setting *Inline chat display*: continue in the **right sidebar** or the chat panel
 
-#### 🆕 **Custom & built-in prompts in SmartBlocks**
+#### In v.38: **Custom & built-in prompts in SmartBlocks**
 - \`<%LIVEAIGEN:{prompt:My prompt},{page}%>\` applies your custom prompt (#liveai/prompt), \`<%LIVEAIGEN:{built-in:summarize},{children}%>\` a built-in prompt ([list of built-in prompts](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/docs/generative-ai.md#list-of-built-in-prompts))
 
-#### 🆕 **New models**
+#### In v.38: **New models**
 - Gemini 4 Argon, Grok 4.7, Claude Haiku 5.5
-
-#### In v.36: **New models**
-- GPT 6 Luna, Sol & Astra, Claude Opus 5.5 & Claude Fable 5.1, Gemini 3.8 Flash, GPT Image 2.5 Sunburst & Flare
-- GPT Image 2.5 models: \`quality: xhigh\` and \`quality: max\` can be requested directly in the image prompt
-
-#### In v.36: **Fixed**
-- Pasting text containing a \`/\` in the Chat input could open the slash commands menu, which then stayed stuck on screen and captured keyboard input
-- \`LIVEAIGEN\` SmartBlock: with \`{append}\`/\`{replace}\` targets, multi-line responses left the host block empty (the first line now goes into it), and \`{page(title)}\` context also included the current page
-
-#### In v.35: Color Highlighter compatibility
-- Ask the agent to **color your notes** — highlight, text color, underline, box, block background — or to **extract content by color**: "extract and comment everything highlighted in blue"
-- Follows the **Color Highlighter** extension conventions (install it from Roam Depot for the colors to render).
-
-#### In v.34: **attached files & live dictation**
-- Attach \`.md\`, \`.txt\`, \`.csv\`, \`.json\` or code files in your prompt or context (\`.docx\`/\`.pptx\` with OpenAI models); the \`PDF\` checkbox became \`Files\`
-- 🆕 **Live transcription**: dictate and your words are inserted in the focused block as you speak — also available in the chat input
 
 📖 [Full Changelog](https://github.com/fbgallet/roam-extension-live-ai-assistant/blob/main/CHANGELOG.md)
 
