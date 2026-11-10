@@ -917,14 +917,14 @@ export async function imageGeneration(
     model.includes("imagen-4.0");
 
   if (requiresGoogle && !googleLibrary?.apiKey) {
-    const warningMessage = `Google API key required for ${model}. Falling back to gpt-image-1-mini.`;
+    const warningMessage = `Google API key required for ${model}. Falling back to gpt-image-2.6-flare.`;
     console.warn(warningMessage);
     AppToaster.show({
       message: warningMessage,
       intent: "warning",
       timeout: 5000,
     });
-    model = "gpt-image-1-mini";
+    model = "gpt-image-2.6-flare";
   }
 
   // Normalize prompt to string if it's an array or object
@@ -1463,9 +1463,9 @@ export async function imageGeneration(
     if (imageConfig.quality) {
       openaiQuality = imageConfig.quality;
     }
-    // "xhigh" and "max" quality levels are only available on GPT Image 2.5
+    // "xhigh" and "max" quality levels are available on GPT Image 2.5 and 2.6
     // models (Sunburst & Flare); clamp to "high" for older models
-    const supportsExtendedQuality = model.startsWith("gpt-image-2.5");
+    const supportsExtendedQuality = /^gpt-image-2\.[56]-(sunburst|flare)/.test(model);
     if (
       !supportsExtendedQuality &&
       (openaiQuality === "xhigh" || openaiQuality === "max")

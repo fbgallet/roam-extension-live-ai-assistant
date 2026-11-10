@@ -920,7 +920,7 @@ function getPanelConfig() {
         id: "defaultImageModel",
         name: "Default image generation model",
         description:
-          "Choose the default model for image generation. Falls back to gpt-image-1-mini if Google API key is missing:",
+          "Choose the default model for image generation. Falls back to gpt-image-2.6-flare if Google API key is missing:",
         action: {
           type: "select",
           items: imageGenerationModels,

@@ -213,6 +213,21 @@ export const MODEL_REGISTRY = {
   },
 
   // OpenAI Image Generation Models
+  "gpt-image-2.6-flare": {
+    id: "gpt-image-2.6-flare",
+    name: "GPT Image 2.6 Flare",
+    provider: "OpenAI",
+    pricing: { input: 5, inputImage: 8, output: 30 },
+    capabilities: {
+      imageInput: true,
+      imageOutput: true,
+      editImage: true,
+    },
+    modelType: "image-generation",
+    visibleByDefault: true,
+    aliases: [],
+  },
+
   "gpt-image-2.5-sunburst": {
     id: "gpt-image-2.5-sunburst",
     name: "GPT Image 2.5 Sunburst",

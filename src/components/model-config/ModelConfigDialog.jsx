@@ -997,7 +997,7 @@ export const ModelConfigDialog = ({
       m.toLowerCase().includes("gpt")
     );
     if (hasOpenAI) {
-      return "gpt-image-1-mini";
+      return "gpt-image-2.6-flare";
     }
 
     return null;
@@ -1250,7 +1250,7 @@ export const ModelConfigDialog = ({
               <Icon icon="media" size={12} />
               <span style={{ fontSize: "12px", color: "#5c7080" }}>
                 Image Gen:{" "}
-                {initialDefault || "gpt-image-1-mini or Nano Banana Pro"}
+                {initialDefault || "gpt-image-2.6-flare or Nano Banana Pro"}
               </span>
             </div>
           )
